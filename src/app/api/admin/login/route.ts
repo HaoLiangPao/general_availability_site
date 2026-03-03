@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { cookies } from 'next/headers';
 import { randomBytes } from 'crypto';
 
 export async function POST(req: Request) {
@@ -13,19 +14,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
+    // Create a session token
     const token = randomBytes(32).toString('hex');
-    const db = getDb();
-    db.prepare('INSERT INTO admin_sessions (token) VALUES (?)').run(token);
+    const sql = getDb();
+    await sql`INSERT INTO admin_sessions (token) VALUES (${token})`;
 
-    const response = NextResponse.json({ success: true });
-    response.cookies.set('admin_token', token, {
+    const cookieStore = await cookies();
+    cookieStore.set('admin_session', token, {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 60 * 60 * 8, // 8 hours
       path: '/',
     });
-    return response;
+
+    return NextResponse.json({ success: true });
   } catch (err) {
+    console.error('[admin/login]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

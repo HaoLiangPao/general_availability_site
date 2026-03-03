@@ -1,38 +1,44 @@
 /**
- * lib/db.ts
- * SQLite database for storing bookings and admin sessions.
- * DB file is created at the project root: bookings.db
+ * lib/db.ts — Postgres via @neondatabase/serverless
+ *
+ * Works on Vercel serverless functions and locally with any Postgres
+ * connection string set in POSTGRES_URL.
  */
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
 
-const DB_PATH = path.join(process.cwd(), 'bookings.db');
+import { neon } from '@neondatabase/serverless';
 
-let _db: Database.Database | null = null;
+function getSql() {
+  const url = process.env.POSTGRES_URL;
+  if (!url) throw new Error('POSTGRES_URL environment variable is not set');
+  return neon(url);
+}
 
-export function getDb(): Database.Database {
-  if (_db) return _db;
-  _db = new Database(DB_PATH);
-  _db.pragma('journal_mode = WAL');
-  _db.exec(`
+// Re-export a lazy sql tagged-template helper
+export function getDb() {
+  return getSql();
+}
+
+// Run once after creating the database (npm run migrate)
+export async function initDb() {
+  const sql = getSql();
+  await sql`
     CREATE TABLE IF NOT EXISTS bookings (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      type       TEXT NOT NULL,
-      date       TEXT NOT NULL,
-      time       TEXT NOT NULL,
-      name       TEXT NOT NULL,
-      email      TEXT NOT NULL,
-      notes      TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
+      id        SERIAL PRIMARY KEY,
+      type      TEXT NOT NULL,
+      date      TEXT NOT NULL,
+      time      TEXT NOT NULL,
+      name      TEXT NOT NULL,
+      email     TEXT NOT NULL,
+      notes     TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  await sql`
     CREATE TABLE IF NOT EXISTS admin_sessions (
       token      TEXT PRIMARY KEY,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  return _db;
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
 }
 
 export type Booking = {

@@ -3,13 +3,19 @@ import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
 
 export async function POST() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('admin_token')?.value;
-  if (token) {
-    const db = getDb();
-    db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token);
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('admin_session')?.value;
+
+    if (token) {
+      const sql = getDb();
+      await sql`DELETE FROM admin_sessions WHERE token = ${token}`;
+    }
+
+    cookieStore.set('admin_session', '', { maxAge: 0, path: '/' });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[admin/logout]', err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
-  const response = NextResponse.json({ success: true });
-  response.cookies.set('admin_token', '', { maxAge: 0 });
-  return response;
 }

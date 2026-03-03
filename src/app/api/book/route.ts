@@ -22,14 +22,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // 1. Persist to local database
-    const db = getDb();
-    const result = db.prepare(`
+    // 1. Persist to Postgres
+    const sql = getDb();
+    const result = await sql`
       INSERT INTO bookings (type, date, time, name, email, notes)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(type, date, time, name, email, notes ?? null);
+      VALUES (${type}, ${date}, ${time}, ${name}, ${email}, ${notes ?? null})
+      RETURNING id
+    `;
+    const id = result[0]?.id;
 
-    // 2. Create Google Calendar event + send owner notification (non-blocking on failure)
+    // 2. Create Google Calendar event + send owner notification (best-effort)
     const calResult = await createBookingEvent({
       type,
       typeLabel:       TYPE_LABELS[type] ?? type,
@@ -42,13 +44,12 @@ export async function POST(req: Request) {
     });
 
     if (calResult.error) {
-      // Log but don't fail the booking — calendar is best-effort if Google isn't configured yet
       console.warn('[book] Calendar event warning:', calResult.error);
     } else {
       console.log('[book] Calendar event created:', calResult.eventId);
     }
 
-    return NextResponse.json({ success: true, id: result.lastInsertRowid });
+    return NextResponse.json({ success: true, id });
   } catch (err) {
     console.error('[book]', err);
     return NextResponse.json({ success: false, error: String(err) }, { status: 500 });

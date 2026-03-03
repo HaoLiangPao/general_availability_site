@@ -9,14 +9,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "setup-oauth": "node scripts/setup-oauth.mjs"
+    "setup-oauth": "node scripts/setup-oauth.mjs",
+    "migrate": "node scripts/migrate.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.6.2",
     "google-auth-library": "^10.6.1",
     "googleapis": "^171.4.0",
     "next": "^16.1.6",
@@ -26,7 +27,6 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.3.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
