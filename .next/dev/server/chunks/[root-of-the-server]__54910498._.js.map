@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 46, "column": 0}, "map": {"version":3,"sources":["file:///home/hao/Desktop/github/general_availability_site/src/app/api/refresh/route.ts"],"sourcesContent":["import { NextResponse } from 'next/server';\n\nexport async function POST() {\n  // Try to connect to MCP or Google/Outlook APIs if configured\n  // For now, this is a mock implementation that simulates fetching calendars.\n  \n  // To implement real sync, you would:\n  // 1. Send request to MCP server or fetch from Google Calendar API\n  // 2. Process events and find free slots\n  // 3. Update the database or cache with the new free slots\n  \n  console.log(\"Syncing calendars... [Mocked]\");\n  \n  // Simulate delay\n  await new Promise(resolve => setTimeout(resolve, 1500));\n  \n  return NextResponse.json({ \n    success: true, \n    message: \"Calendars synced successfully!\", \n    syncedAt: new Date().toISOString()\n  });\n}\n"],"names":[],"mappings":";;;;AAAA;;AAEO,eAAe;IACpB,6DAA6D;IAC7D,4EAA4E;IAE5E,qCAAqC;IACrC,kEAAkE;IAClE,wCAAwC;IACxC,0DAA0D;IAE1D,QAAQ,GAAG,CAAC;IAEZ,iBAAiB;IACjB,MAAM,IAAI,QAAQ,CAAA,UAAW,WAAW,SAAS;IAEjD,OAAO,gJAAY,CAAC,IAAI,CAAC;QACvB,SAAS;QACT,SAAS;QACT,UAAU,IAAI,OAAO,WAAW;IAClC;AACF"}}]
-}

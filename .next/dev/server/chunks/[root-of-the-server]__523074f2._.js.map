@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 46, "column": 0}, "map": {"version":3,"sources":["file:///home/hao/Desktop/github/general_availability_site/src/app/api/book/route.ts"],"sourcesContent":["import { NextResponse } from 'next/server';\n\nexport async function POST(req: Request) {\n  try {\n    const data = await req.json();\n    console.log(\"Booking request received: \", data);\n    \n    // Simulate booking flow:\n    // 1. Create event on calendar (Google/Outlook/MCP)\n    // 2. Send email confirmation to user\n    // 3. Mark time slot as unavailable in DB\n    \n    await new Promise(resolve => setTimeout(resolve, 1000));\n\n    return NextResponse.json({ \n      success: true, \n      message: \"Booking confirmed successfully\"\n    });\n  } catch (err) {\n    return NextResponse.json({ success: false, error: \"Failed to parse request\" }, { status: 400 });\n  }\n}\n"],"names":[],"mappings":";;;;AAAA;;AAEO,eAAe,KAAK,GAAY;IACrC,IAAI;QACF,MAAM,OAAO,MAAM,IAAI,IAAI;QAC3B,QAAQ,GAAG,CAAC,8BAA8B;QAE1C,yBAAyB;QACzB,mDAAmD;QACnD,qCAAqC;QACrC,yCAAyC;QAEzC,MAAM,IAAI,QAAQ,CAAA,UAAW,WAAW,SAAS;QAEjD,OAAO,gJAAY,CAAC,IAAI,CAAC;YACvB,SAAS;YACT,SAAS;QACX;IACF,EAAE,OAAO,KAAK;QACZ,OAAO,gJAAY,CAAC,IAAI,CAAC;YAAE,SAAS;YAAO,OAAO;QAA0B,GAAG;YAAE,QAAQ;QAAI;IAC/F;AACF"}}]
-}
