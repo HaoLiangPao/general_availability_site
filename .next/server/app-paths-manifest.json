@@ -1,0 +1,13 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/api/admin/login/route": "app/api/admin/login/route.js",
+  "/api/admin/logout/route": "app/api/admin/logout/route.js",
+  "/api/admin/stats/route": "app/api/admin/stats/route.js",
+  "/api/availability/route": "app/api/availability/route.js",
+  "/api/book/route": "app/api/book/route.js",
+  "/api/refresh/route": "app/api/refresh/route.js",
+  "/book/[type]/page": "app/book/[type]/page.js",
+  "/page": "app/page.js"
+}

@@ -1,0 +1,13 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/admin/page": "/admin",
+  "/api/admin/login/route": "/api/admin/login",
+  "/api/admin/logout/route": "/api/admin/logout",
+  "/api/admin/stats/route": "/api/admin/stats",
+  "/api/availability/route": "/api/availability",
+  "/api/book/route": "/api/book",
+  "/api/refresh/route": "/api/refresh",
+  "/book/[type]/page": "/book/[type]",
+  "/page": "/"
+}
