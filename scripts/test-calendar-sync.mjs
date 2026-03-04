@@ -73,13 +73,39 @@ try {
   process.exit(1);
 }
 
-// ── 3. Google Calendar freebusy ────────────────────────────────
-console.log('\n📅  Querying Google Calendar freebusy API…');
-console.log('  ℹ️  If this fails, enable the API at:');
-console.log(`  https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=${process.env.GOOGLE_CLIENT_ID?.split('-')[0]}`);
+// ── 3. Discover all calendars ─────────────────────────────────
+console.log('\n�  Discovering all calendars in your Google account…');
 
 const calendar = google.calendar({ version: 'v3', auth: oauthClient });
+let allCalendarIds = [];
+
+try {
+  const { data: calList } = await calendar.calendarList.list({ minAccessRole: 'freeBusyReader' });
+  const items = calList.items ?? [];
+
+  console.log(`\n  Found ${items.length} calendar(s):\n`);
+  console.log('  ┌─────────────────────────────────────────────────────────────┐');
+  for (const item of items) {
+    const selected = (process.env.GOOGLE_CALENDAR_IDS ?? 'primary')
+      .split(',').map(s => s.trim()).includes(item.id ?? '') ? '✅' : '  ';
+    console.log(`  │ ${selected} ${(item.summary ?? '(no name)').padEnd(35)} ${(item.id ?? '').slice(0, 20)}`);
+    allCalendarIds.push(item.id);
+  }
+  console.log('  └─────────────────────────────────────────────────────────────┘');
+  console.log('\n  ✅ = currently in GOOGLE_CALENDAR_IDS');
+  console.log('\n  To include ALL calendars in your availability check, add this to .env.local:');
+  console.log(`\n  GOOGLE_CALENDAR_IDS=${allCalendarIds.join(',')}\n`);
+  ok(`Found ${items.length} calendars`);
+} catch (err) {
+  fail('Calendar list failed', err.message);
+  allCalendarIds = ['primary'];
+}
+
+// ── 4. Google Calendar freebusy (14-day overview) ─────────────
+console.log('\n📅  Querying freebusy for next 14 days (current GOOGLE_CALENDAR_IDS)…');
 const calendarIds = (process.env.GOOGLE_CALENDAR_IDS ?? 'primary').split(',').map(id => id.trim());
+console.log(`  Checking: ${calendarIds.join(', ')}`);
+
 const timeMin = new Date().toISOString();
 const timeMax = new Date(Date.now() + 14 * 86400_000).toISOString();
 
@@ -99,7 +125,7 @@ try {
     }
   }
   if (totalBusy === 0) {
-    console.log("  ℹ️  No busy intervals — that's fine if your calendar is empty.");
+    console.log("  ℹ️  No busy intervals found — try adding more calendar IDs above.");
   }
 } catch (err) {
   fail('Google Calendar API call failed', err.message);
@@ -109,6 +135,7 @@ try {
     console.error('  After enabling, wait 1-2 minutes then re-run this test.\n');
   }
 }
+
 
 // ── 4. Outlook iCal (optional) ─────────────────────────────────
 if (process.env.OUTLOOK_ICAL_URL) {
