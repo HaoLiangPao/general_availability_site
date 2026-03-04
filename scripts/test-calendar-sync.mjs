@@ -155,29 +155,94 @@ function filterAvailableSlots(dateStr, candidates, durationMinutes, busy) {
   });
 }
 
-// Use a full-day UTC block so the result is timezone-independent.
-// Any local time on that day will overlap a 00:00–23:59 UTC block.
-const BLOCKED_DATE   = '2030-06-15';
-const UNBLOCKED_DATE = '2030-06-16';
+// Use a synthetic full-day block on 2026-03-04 (a real date with a full-day event).
+// A full-day UTC block ensures the result is timezone-independent.
+const BLOCKED_DATE   = '2026-03-04';
+const UNBLOCKED_DATE = '2026-03-05';
 const testBusy = [
-  { start: '2030-06-15T00:00:00Z', end: '2030-06-15T23:59:59Z' },
+  { start: '2026-03-04T00:00:00Z', end: '2026-03-04T23:59:59Z' },
 ];
 const candidates = ['09:00 AM', '02:00 PM'];
 
 const onBusy   = filterAvailableSlots(BLOCKED_DATE,   candidates, 30, testBusy);
 const onFree   = filterAvailableSlots(UNBLOCKED_DATE, candidates, 30, testBusy);
 
-if (!onBusy.find(r => r.time === '09:00 AM')?.available) ok('09:00 AM on busy day is blocked');
-else fail('09:00 AM on busy day should be blocked', JSON.stringify(onBusy));
+if (!onBusy.find(r => r.time === '09:00 AM')?.available) ok('09:00 AM on busy day (2026-03-04) is blocked');
+else fail('09:00 AM on 2026-03-04 should be blocked', JSON.stringify(onBusy));
 
-if (!onBusy.find(r => r.time === '02:00 PM')?.available) ok('02:00 PM on busy day is blocked');
-else fail('02:00 PM on busy day should be blocked', JSON.stringify(onBusy));
+if (!onBusy.find(r => r.time === '02:00 PM')?.available) ok('02:00 PM on busy day (2026-03-04) is blocked');
+else fail('02:00 PM on 2026-03-04 should be blocked', JSON.stringify(onBusy));
 
-if (onFree.find(r => r.time === '09:00 AM')?.available)  ok('09:00 AM on free day is available');
-else fail('09:00 AM on free day should be available', JSON.stringify(onFree));
+if (onFree.find(r => r.time === '09:00 AM')?.available)  ok('09:00 AM on free day (2026-03-05) is available');
+else fail('09:00 AM on 2026-03-05 should be available', JSON.stringify(onFree));
 
-if (onFree.find(r => r.time === '02:00 PM')?.available)  ok('02:00 PM on free day is available');
-else fail('02:00 PM on free day should be available', JSON.stringify(onFree));
+if (onFree.find(r => r.time === '02:00 PM')?.available)  ok('02:00 PM on free day (2026-03-05) is available');
+else fail('02:00 PM on 2026-03-05 should be available', JSON.stringify(onFree));
+
+// ── 6. Live availability check for 2026-03-04 ─────────────────
+console.log('\n🗓️   Live availability check for 2026-03-04…');
+console.log('  (Using real Google Calendar data for this date)\n');
+
+const ALL_SLOTS = [
+  '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM',
+  '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
+  '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM',
+  '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
+  '05:00 PM',
+];
+
+try {
+  // Query freebusy specifically for 2026-03-04 (midnight-to-midnight in UTC)
+  const dayStart = new Date('2026-03-04T00:00:00Z').toISOString();
+  const dayEnd   = new Date('2026-03-05T00:00:00Z').toISOString();
+
+  const { data: dayData } = await calendar.freebusy.query({
+    requestBody: {
+      timeMin: dayStart,
+      timeMax: dayEnd,
+      items: calendarIds.map(id => ({ id })),
+    },
+  });
+
+  // Collect all busy intervals for the day
+  const dayBusy = [];
+  for (const [calId, cal] of Object.entries(dayData.calendars ?? {})) {
+    console.log(`  📅  Calendar: "${calId}"`);
+    if (cal.errors?.length) {
+      console.log(`       ⚠️  Errors: ${JSON.stringify(cal.errors)}`);
+    } else if (!cal.busy?.length) {
+      console.log(`       ℹ️  No busy intervals on 2026-03-04`);
+    } else {
+      console.log(`       Busy intervals (UTC):`);
+      for (const b of cal.busy) {
+        const localStart = new Date(b.start).toLocaleString('en-CA', { timeZone: 'America/Toronto', hour12: true });
+        const localEnd   = new Date(b.end).toLocaleString('en-CA', { timeZone: 'America/Toronto', hour12: true });
+        console.log(`         ${b.start} → ${b.end}`);
+        console.log(`         (Toronto: ${localStart} → ${localEnd})`);
+        dayBusy.push(b);
+      }
+    }
+  }
+
+  // Run filterAvailableSlots against real data
+  console.log(`\n  Candidate slots vs. real calendar data (30-min duration):`);
+  const realResults = filterAvailableSlots('2026-03-04', ALL_SLOTS, 30, dayBusy);
+  const available = realResults.filter(r => r.available);
+  const blocked   = realResults.filter(r => !r.available);
+
+  if (blocked.length) {
+    console.log(`\n  🔴  Blocked slots (${blocked.length}):`);
+    blocked.forEach(r => console.log(`       ${r.time}`));
+  }
+  if (available.length) {
+    console.log(`\n  🟢  Available slots (${available.length}):`);
+    available.forEach(r => console.log(`       ${r.time}`));
+  } else {
+    console.log('\n  ℹ️  No available slots — the whole day appears busy.');
+  }
+} catch (err) {
+  console.error(`  ❌  Live check failed: ${err.message}`);
+}
 
 // ── Summary ────────────────────────────────────────────────────
 console.log(`\n${'─'.repeat(50)}`);
