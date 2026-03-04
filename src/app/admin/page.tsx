@@ -64,7 +64,9 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/stats');
       if (res.ok) {
         const data = await res.json();
-        setStats(data);
+        // API returns { bookings: [...], stats: { total, recentCount, byType } }
+        // Flatten into the Stats shape the component expects
+        setStats({ ...data.stats, bookings: data.bookings });
         setAuthed(true);
       }
     } finally {

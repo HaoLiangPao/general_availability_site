@@ -166,10 +166,13 @@ function parseDateTimeLocal(dateStr: string, timeStr: string): Date {
   let [hours, minutes] = time.split(':').map(Number);
   if (period === 'PM' && hours !== 12) hours += 12;
   if (period === 'AM' && hours === 12) hours  = 0;
-  const d = new Date(dateStr);
-  d.setHours(hours, minutes, 0, 0);
-  return d;
+  // Use Date(year, month-1, day) so the date is constructed in LOCAL time.
+  // new Date('YYYY-MM-DD') creates UTC midnight, which lands on the previous
+  // day for UTC-negative timezones when setHours() is called.
+  const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+  return new Date(year, month - 1, day, hours, minutes, 0, 0);
 }
+
 
 // ─── WRITE: create calendar event + notify owner ──────────────────────────────
 
