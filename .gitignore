@@ -32,3 +32,4 @@ yarn-error.log*
 
 # Google OAuth token (if you ever store it locally)
 google-token.json
+client_secret_*.json
