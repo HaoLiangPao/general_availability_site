@@ -46,11 +46,15 @@ export default function BookPage() {
   const [email, setEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'etransfer' | 'stripe'>('etransfer');
+  const [promoCode, setPromoCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [booked, setBooked] = useState(false);
   const [error, setError] = useState('');
 
   const todayIso = toLocalISO(new Date());
+
+  const skiBasePrice = paymentMethod === 'stripe' ? 100 : 90;
+  const skiFinalPrice = promoCode === 'WINTER10' ? skiBasePrice - 10 : skiBasePrice;
 
   const fetchSlots = useCallback(async (isoDate: string) => {
     setLoadingSlots(true);
@@ -108,7 +112,7 @@ export default function BookPage() {
     try {
       let finalNotes = notes;
       if (type === 'ski_lesson') {
-         finalNotes = `[Payment: ${paymentMethod === 'stripe' ? 'Stripe' : 'E-Transfer'}]\n${notes}`;
+         finalNotes = `[Payment: ${paymentMethod === 'stripe' ? 'Stripe' : 'E-Transfer'}]\n[Price: $${skiFinalPrice}/hour]\n${promoCode ? `[Promo: ${promoCode}]\n` : ''}${notes}`;
       }
       const res = await fetch('/api/book', {
         method: 'POST',
@@ -145,6 +149,12 @@ export default function BookPage() {
             <strong>{selectedIsoDate}</strong> at{' '}
             <strong>{selectedTime}</strong>.
           </p>
+          {type === 'ski_lesson' && paymentMethod === 'etransfer' && (
+            <div className="etransfer-instructions" style={{ marginTop: '16px', padding: '16px', background: 'var(--bg2)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <strong>E-Transfer Instructions:</strong><br />
+              Please send your payment of <strong>${skiFinalPrice}</strong> to <a>hao.liang@example.com</a> (auto-deposit enabled) to secure your spot.
+            </div>
+          )}
           <div className="confirmed-actions">
             <button className="btn btn-primary" onClick={() => router.push('/')}>← Book another</button>
           </div>
@@ -245,19 +255,28 @@ export default function BookPage() {
           </div>
 
           {type === 'ski_lesson' && (
-            <div className="form-group">
-               <label>Payment Method *</label>
-               <div className="payment-options">
-                 <label className="payment-radio">
-                   <input type="radio" name="payment" value="etransfer" checked={paymentMethod === 'etransfer'} onChange={() => setPaymentMethod('etransfer')} />
-                   E-Transfer
-                 </label>
-                 <label className="payment-radio">
-                   <input type="radio" name="payment" value="stripe" checked={paymentMethod === 'stripe'} onChange={() => setPaymentMethod('stripe')} />
-                   Credit Card (Stripe)
-                 </label>
-               </div>
-            </div>
+            <>
+              <div className="form-group">
+                 <label>Payment Method *</label>
+                 <div className="payment-options">
+                   <label className="payment-radio">
+                     <input type="radio" name="payment" value="etransfer" checked={paymentMethod === 'etransfer'} onChange={() => setPaymentMethod('etransfer')} />
+                     E-Transfer ($90/hr)
+                   </label>
+                   <label className="payment-radio">
+                     <input type="radio" name="payment" value="stripe" checked={paymentMethod === 'stripe'} onChange={() => setPaymentMethod('stripe')} />
+                     Credit Card ($100/hr)
+                   </label>
+                 </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="promo-code">Promo Code</label>
+                <input id="promo-code" type="text" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="e.g. WINTER10" />
+              </div>
+              <div className="price-display" style={{ padding: '12px', background: 'var(--bg2)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.95rem', fontWeight: 600 }}>
+                Total Price: ${skiFinalPrice} / hour
+              </div>
+            </>
           )}
 
           <div className="form-group">
