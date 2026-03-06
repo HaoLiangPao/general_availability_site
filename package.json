@@ -11,7 +11,8 @@
     "lint": "next lint",
     "setup-oauth": "node scripts/setup-oauth.mjs",
     "migrate": "node scripts/migrate.mjs",
-    "test-calendar": "node scripts/test-calendar-sync.mjs"
+    "test-calendar": "node scripts/test-calendar-sync.mjs",
+    "test-e2e": "node scripts/test-e2e.mjs"
   },
   "keywords": [],
   "author": "",

@@ -13,6 +13,7 @@ const DURATION: Record<string, number> = {
   interview: 45,
   coffee: 30,
   in_person: 60,
+  ski_lesson: 60,
 };
 
 export async function GET(req: Request) {
@@ -22,6 +23,15 @@ export async function GET(req: Request) {
 
   if (!date) {
     return NextResponse.json({ error: 'date param required' }, { status: 400 });
+  }
+
+  // Block the weekends for Interview type of events
+  if (type === 'interview') {
+    const d = new Date(date + 'T12:00:00'); // Midday to avoid timezone shifting
+    if (d.getDay() === 0 || d.getDay() === 6) {
+      const emptySlots = CANDIDATE_TIMES.map(time => ({ time, available: false }));
+      return NextResponse.json({ slots: emptySlots, lastSynced: new Date().toISOString() });
+    }
   }
 
   const busy = await getAllBusySlots(30);

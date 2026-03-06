@@ -30,6 +30,14 @@ const EVENTS = [
     icon: '🤝',
     color: '#3fb950',
   },
+  {
+    id: 'ski_lesson',
+    title: 'Ski Lesson',
+    duration: '60 min',
+    description: 'Book a 60-minute ski class. Get ready to hit the slopes!',
+    icon: '⛷️',
+    color: '#00d2ff',
+  },
 ];
 
 export default function HomePage() {
