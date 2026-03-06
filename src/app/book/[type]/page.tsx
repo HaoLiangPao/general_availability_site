@@ -142,18 +142,32 @@ export default function BookPage() {
       <div className="container">
         <div className="confirmed-card card">
           <div className="confirmed-icon">🎉</div>
-          <h1 className="confirmed-title">Meeting Confirmed!</h1>
-          <p className="confirmed-sub">
-            A calendar invite will be sent to <strong>{email}</strong> for
-            your <strong>{meta.title}</strong> on{' '}
-            <strong>{selectedIsoDate}</strong> at{' '}
-            <strong>{selectedTime}</strong>.
-          </p>
-          {type === 'ski_lesson' && paymentMethod === 'etransfer' && (
-            <div className="etransfer-instructions" style={{ marginTop: '16px', padding: '16px', background: 'var(--bg2)', borderRadius: '8px', border: '1px solid var(--border)' }}>
-              <strong>E-Transfer Instructions:</strong><br />
-              Please send your payment of <strong>${skiFinalPrice}</strong> to <a>hao.liang@example.com</a> (auto-deposit enabled) to secure your spot.
-            </div>
+          {type === 'interview' ? (
+             <>
+               <h1 className="confirmed-title">Pending Confirmation!</h1>
+               <p className="confirmed-sub">
+                 Your interview request for <strong>{selectedIsoDate}</strong> at{' '}
+                 <strong>{selectedTime}</strong> has been sent to Hao.
+                 <br /><br />
+                 Please wait for the confirmation email before considering this finalized.
+               </p>
+             </>
+          ) : (
+             <>
+               <h1 className="confirmed-title">Meeting Confirmed!</h1>
+               <p className="confirmed-sub">
+                 A calendar invite will be sent to <strong>{email}</strong> for
+                 your <strong>{meta.title}</strong> on{' '}
+                 <strong>{selectedIsoDate}</strong> at{' '}
+                 <strong>{selectedTime}</strong>.
+               </p>
+               {type === 'ski_lesson' && paymentMethod === 'etransfer' && (
+                 <div className="etransfer-instructions" style={{ marginTop: '16px', padding: '16px', background: 'var(--bg2)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                   <strong>E-Transfer Instructions:</strong><br />
+                   Please send your payment of <strong>${skiFinalPrice}</strong> to <a>hao.liang@example.com</a> (auto-deposit enabled) to secure your spot.
+                 </div>
+               )}
+             </>
           )}
           <div className="confirmed-actions">
             <button className="btn btn-primary" onClick={() => router.push('/')}>← Book another</button>

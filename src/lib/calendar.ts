@@ -185,6 +185,7 @@ export interface BookingDetails {
   guestName: string;
   guestEmail: string;
   notes: string;
+  confirmLink?: string;
 }
 
 /**
@@ -284,6 +285,7 @@ async function sendOwnerNotificationEmail(
     booking.notes ? ` Notes:    ${booking.notes}` : '',
     `─────────────────────────────────`,
     ``,
+    booking.confirmLink ? `*** IMMEDIATE ACTION REQUIRED ***\nTo confirm this interview, click here:\n${booking.confirmLink}\n\n` : '',
     `A calendar event has been added to your Google Calendar.`,
     ``,
     `— Your Availability Site`,
