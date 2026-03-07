@@ -27,16 +27,19 @@ const TYPE_ICONS: Record<string, string> = {
   interview: '💼',
   coffee: '☕',
   in_person: '🤝',
+  ski_lesson: '⛷️',
 };
 const TYPE_LABELS: Record<string, string> = {
   interview: 'Interview',
   coffee: 'Coffee Chat',
   in_person: 'In-Person',
+  ski_lesson: 'Ski Lesson',
 };
 const TYPE_COLORS: Record<string, string> = {
   interview: '#58a6ff',
   coffee: '#a371f7',
   in_person: '#3fb950',
+  ski_lesson: '#00b4d8',
 };
 
 export default function AdminPage() {
@@ -192,19 +195,20 @@ export default function AdminPage() {
         <>
           {/* Stat cards */}
           <div className="stat-grid">
-            <div className="stat-card card">
+            <div className="stat-card card hoverable" onClick={() => setFilterType('all')} style={{ cursor: 'pointer' }}>
               <div className="stat-label">Total Bookings</div>
               <div className="stat-value">{stats.total}</div>
             </div>
-            <div className="stat-card card">
+            <div className="stat-card card hoverable" onClick={() => setFilterType('all')} style={{ cursor: 'pointer' }}>
               <div className="stat-label">Last 7 Days</div>
               <div className="stat-value">{stats.recentCount}</div>
             </div>
             {Object.entries(stats.byType).map(([type, count]) => (
               <div
-                className="stat-card card"
+                className="stat-card card hoverable"
                 key={type}
-                style={{ '--accent': TYPE_COLORS[type] } as React.CSSProperties}
+                style={{ '--accent': TYPE_COLORS[type], cursor: 'pointer' } as React.CSSProperties}
+                onClick={() => setFilterType(type)}
               >
                 <div className="stat-label">{TYPE_ICONS[type]} {TYPE_LABELS[type] ?? type}</div>
                 <div className="stat-value stat-accent">{count}</div>
@@ -217,7 +221,7 @@ export default function AdminPage() {
             <div className="table-header">
               <h2 className="col-title" style={{ marginBottom: 0 }}>Bookings</h2>
               <div className="filter-tabs">
-                {['all', 'interview', 'coffee', 'in_person'].map(t => (
+                {['all', 'interview', 'coffee', 'in_person', 'ski_lesson'].map(t => (
                   <button
                     key={t}
                     className={`filter-tab ${filterType === t ? 'active' : ''}`}

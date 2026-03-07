@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAllBusySlots, filterAvailableSlots } from '@/lib/calendar';
+import { getAllBusySlots, filterAvailableSlots, parseDateTimeLocal } from '@/lib/calendar';
+import { getDb } from '@/lib/db';
 
 // Candidate times shown on the booking page
 const CANDIDATE_TIMES = [
@@ -35,6 +36,21 @@ export async function GET(req: Request) {
   }
 
   const busy = await getAllBusySlots(30);
+  
+  // Directly append Local DB rows to block out immediate conflicts
+  try {
+    const sql = getDb();
+    const dbBookings = await sql`SELECT date, time, type FROM bookings WHERE date = ${date} AND status IN ('pending', 'confirmed')`;
+    for (const b of dbBookings) {
+      const bDuration = DURATION[b.type] ?? 45;
+      const slotStart = parseDateTimeLocal(b.date, b.time);
+      const slotEnd = new Date(slotStart.getTime() + bDuration * 60_000);
+      busy.push({ start: slotStart.toISOString(), end: slotEnd.toISOString() });
+    }
+  } catch (err) {
+    console.error('[availability] DB Sync error:', err);
+  }
+
   const duration = DURATION[type] ?? 45;
   const slots = filterAvailableSlots(date, CANDIDATE_TIMES, duration, busy);
 

@@ -50,6 +50,56 @@ export async function DELETE(req: Request) {
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
     const sql = getDb();
+    
+    // 1. Load the original booking to notify the user
+    const existing = await sql`SELECT * FROM bookings WHERE id = ${id}`;
+    if (existing.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const b = existing[0];
+
+    // 2. Fetch external dependencies (only act if Google token is configured)
+    if (process.env.GOOGLE_REFRESH_TOKEN) {
+      const { google } = require('googleapis');
+      const { getGoogleOAuth2Client } = require('@/lib/calendar');
+      
+      const auth = getGoogleOAuth2Client();
+      const calendar = google.calendar({ version: 'v3', auth });
+      const gmail = google.gmail({ version: 'v1', auth });
+
+      if (b.calendar_event_id) {
+        try {
+          await calendar.events.delete({ calendarId: 'primary', eventId: b.calendar_event_id, sendUpdates: 'all' });
+        } catch(cErr) {
+          console.error('[admin/stats] Failed deleting calendar event:', cErr);
+        }
+      }
+
+      // 3. Send manual cancellation email over Gmail
+      const rawMessage = [
+        `From: ${process.env.OWNER_EMAIL ?? 'hflsforeverhao@gmail.com'}`,
+        `To: ${b.email}`,
+        `Subject: Booking Cancelled - Hao Liang`,
+        `Content-Type: text/plain; charset=utf-8`,
+        ``,
+        `Hi ${b.name},`,
+        ``,
+        `Your booking on ${b.date} at ${b.time} has been officially cancelled.`,
+        `If you have any questions, please reach out to Hao directly.`,
+        ``,
+        `Best,`,
+        `Hao Liang`
+      ].join('\n');
+  
+      try {
+        await gmail.users.messages.send({
+          userId: 'me',
+          requestBody: { raw: Buffer.from(rawMessage).toString('base64url') },
+        });
+      } catch(gErr) {
+        console.error('[admin/stats] Failed sending cancel email:', gErr);
+      }
+    }
+
+    // 4. Finally delete from internal DB
     await sql`DELETE FROM bookings WHERE id = ${id}`;
     return NextResponse.json({ success: true });
   } catch (err) {

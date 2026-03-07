@@ -161,7 +161,7 @@ export function filterAvailableSlots(
   });
 }
 
-function parseDateTimeLocal(dateStr: string, timeStr: string): Date {
+export function parseDateTimeLocal(dateStr: string, timeStr: string): Date {
   const [time, period] = timeStr.split(' ');
   let [hours, minutes] = time.split(':').map(Number);
   if (period === 'PM' && hours !== 12) hours += 12;
