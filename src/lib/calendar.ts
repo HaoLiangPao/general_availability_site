@@ -14,6 +14,7 @@
  */
 
 import { google } from 'googleapis';
+import { getHostTimeZone, sanitizeHeaderValue } from '@/lib/booking';
 
 export interface BusyInterval {
   start: string;
@@ -145,7 +146,7 @@ export async function getAllBusySlots(days = 14): Promise<BusyInterval[]> {
  */
 export function filterAvailableSlots(
   dateStr: string,
-  candidates: string[],
+  candidates: readonly string[],
   durationMinutes: number,
   busy: BusyInterval[]
 ): { time: string; available: boolean }[] {
@@ -166,11 +167,43 @@ export function parseDateTimeLocal(dateStr: string, timeStr: string): Date {
   let [hours, minutes] = time.split(':').map(Number);
   if (period === 'PM' && hours !== 12) hours += 12;
   if (period === 'AM' && hours === 12) hours  = 0;
-  // Use Date(year, month-1, day) so the date is constructed in LOCAL time.
-  // new Date('YYYY-MM-DD') creates UTC midnight, which lands on the previous
-  // day for UTC-negative timezones when setHours() is called.
   const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
-  return new Date(year, month - 1, day, hours, minutes, 0, 0);
+  const hostTimeZone = getHostTimeZone();
+  const wallClockUtc = Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
+
+  let actualUtc = wallClockUtc;
+  for (let i = 0; i < 2; i += 1) {
+    actualUtc = wallClockUtc - getTimeZoneOffsetMs(new Date(actualUtc), hostTimeZone);
+  }
+
+  return new Date(actualUtc);
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+
+  const parts = formatter.formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+
+  const asUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second),
+  );
+
+  return asUtc - date.getTime();
 }
 
 
@@ -186,14 +219,15 @@ export interface BookingDetails {
   guestEmail: string;
   notes: string;
   confirmLink?: string;
+  inviteGuest?: boolean;
 }
 
 /**
  * Creates a Google Calendar event on the owner's primary calendar and
  * sends a notification email to OWNER_EMAIL (defaults to h.liang@alumni.utoronto.ca).
  *
- * The guest (booker) is NOT sent a calendar invite — they only get the
- * confirmation shown in the UI. Only the owner gets the calendar block.
+ * Interview requests stay host-only until confirmed. Immediately confirmed
+ * booking types can include the guest as an attendee so Google sends an invite.
  */
 export async function createBookingEvent(booking: BookingDetails): Promise<{ eventId?: string; error?: string }> {
   if (!isGoogleConfigured()) {
@@ -208,6 +242,13 @@ export async function createBookingEvent(booking: BookingDetails): Promise<{ eve
   const endDt   = new Date(startDt.getTime() + booking.durationMinutes * 60_000);
 
   const ownerEmail = process.env.OWNER_EMAIL ?? 'h.liang@alumni.utoronto.ca';
+  const hostTimeZone = getHostTimeZone();
+  const attendees = booking.inviteGuest
+    ? [
+        { email: ownerEmail, responseStatus: 'accepted' as const },
+        { email: booking.guestEmail },
+      ]
+    : [{ email: ownerEmail, responseStatus: 'accepted' as const }];
 
   const eventBody = {
     summary: `${bookingIcon(booking.type)} ${booking.typeLabel} — ${booking.guestName}`,
@@ -219,10 +260,9 @@ export async function createBookingEvent(booking: BookingDetails): Promise<{ eve
       `Duration: ${booking.durationMinutes} min`,
       booking.notes ? `\nNotes from guest:\n${booking.notes}` : '',
     ].join('\n'),
-    start: { dateTime: startDt.toISOString(), timeZone: 'America/New_York' },
-    end:   { dateTime: endDt.toISOString(),   timeZone: 'America/New_York' },
-    // Attendees list only contains the owner — guest is NOT invited automatically
-    attendees: [{ email: ownerEmail, responseStatus: 'accepted' }],
+    start: { dateTime: startDt.toISOString(), timeZone: hostTimeZone },
+    end:   { dateTime: endDt.toISOString(),   timeZone: hostTimeZone },
+    attendees,
     reminders: {
       useDefault: false,
       overrides: [
@@ -237,7 +277,7 @@ export async function createBookingEvent(booking: BookingDetails): Promise<{ eve
     const res = await calendar.events.insert({
       calendarId: 'primary',
       requestBody: eventBody,
-      sendUpdates: 'none',   // don't auto-email guests from Google
+      sendUpdates: booking.inviteGuest ? 'all' : 'none',
     });
     const eventId = res.data.id ?? undefined;
 
@@ -270,7 +310,10 @@ async function sendOwnerNotificationEmail(
 ) {
   const gmail = google.gmail({ version: 'v1', auth });
 
-  const subject = `New booking: ${booking.typeLabel} with ${booking.guestName} on ${booking.date} at ${booking.time}`;
+  const subject = sanitizeHeaderValue(
+    `New booking: ${booking.typeLabel} with ${booking.guestName} on ${booking.date} at ${booking.time}`
+  );
+  const safeOwnerEmail = sanitizeHeaderValue(ownerEmail);
   const body = [
     `Hi Hao,`,
     ``,
@@ -293,8 +336,8 @@ async function sendOwnerNotificationEmail(
 
   // RFC 2822 raw message
   const rawMessage = [
-    `From: ${ownerEmail}`,
-    `To: ${ownerEmail}`,
+    `From: ${safeOwnerEmail}`,
+    `To: ${safeOwnerEmail}`,
     `Subject: ${subject}`,
     `Content-Type: text/plain; charset=utf-8`,
     ``,

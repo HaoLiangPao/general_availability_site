@@ -7,8 +7,11 @@ export async function POST(req: Request) {
   try {
     const { username, password } = await req.json();
 
-    const validUser = process.env.ADMIN_USERNAME ?? 'admin';
-    const validPass = process.env.ADMIN_PASSWORD ?? 'changeme';
+    const validUser = process.env.ADMIN_USERNAME;
+    const validPass = process.env.ADMIN_PASSWORD;
+    if (!validUser || !validPass) {
+      return NextResponse.json({ error: 'Admin credentials are not configured on the server' }, { status: 500 });
+    }
 
     if (username !== validUser || password !== validPass) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
@@ -25,6 +28,7 @@ export async function POST(req: Request) {
       sameSite: 'lax',
       maxAge: 60 * 60 * 8, // 8 hours
       path: '/',
+      secure: process.env.NODE_ENV === 'production',
     });
 
     return NextResponse.json({ success: true });

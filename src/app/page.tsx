@@ -107,7 +107,7 @@ export default function HomePage() {
       </div>
 
       <footer className="home-footer">
-        <p>All times shown in your local timezone.</p>
+        <p>All times are shown in the host timezone.</p>
       </footer>
     </div>
   );

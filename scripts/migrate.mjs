@@ -42,17 +42,25 @@ console.log('\n⏳  Running database migrations…\n');
 
 await sql`
   CREATE TABLE IF NOT EXISTS bookings (
-    id         SERIAL PRIMARY KEY,
-    type       TEXT NOT NULL,
-    date       TEXT NOT NULL,
-    time       TEXT NOT NULL,
-    name       TEXT NOT NULL,
-    email      TEXT NOT NULL,
-    notes      TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    id                SERIAL PRIMARY KEY,
+    type              TEXT NOT NULL,
+    date              TEXT NOT NULL,
+    time              TEXT NOT NULL,
+    name              TEXT NOT NULL,
+    email             TEXT NOT NULL,
+    notes             TEXT,
+    status            TEXT NOT NULL DEFAULT 'confirmed',
+    confirm_token     TEXT,
+    calendar_event_id TEXT,
+    created_at        TIMESTAMPTZ DEFAULT NOW()
   )
 `;
 console.log('  ✅  bookings table ready');
+
+await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'confirmed'`;
+await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirm_token TEXT`;
+await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS calendar_event_id TEXT`;
+console.log('  ✅  bookings columns aligned');
 
 await sql`
   CREATE TABLE IF NOT EXISTS admin_sessions (

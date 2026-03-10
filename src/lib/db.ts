@@ -23,14 +23,17 @@ export async function initDb() {
   const sql = getSql();
   await sql`
     CREATE TABLE IF NOT EXISTS bookings (
-      id        SERIAL PRIMARY KEY,
-      type      TEXT NOT NULL,
-      date      TEXT NOT NULL,
-      time      TEXT NOT NULL,
-      name      TEXT NOT NULL,
-      email     TEXT NOT NULL,
-      notes     TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      id                SERIAL PRIMARY KEY,
+      type              TEXT NOT NULL,
+      date              TEXT NOT NULL,
+      time              TEXT NOT NULL,
+      name              TEXT NOT NULL,
+      email             TEXT NOT NULL,
+      notes             TEXT,
+      status            TEXT NOT NULL DEFAULT 'confirmed',
+      confirm_token     TEXT,
+      calendar_event_id TEXT,
+      created_at        TIMESTAMPTZ DEFAULT NOW()
     )
   `;
   await sql`
@@ -49,5 +52,8 @@ export type Booking = {
   name: string;
   email: string;
   notes: string | null;
+  status?: string;
+  confirm_token?: string | null;
+  calendar_event_id?: string | null;
   created_at: string;
 };

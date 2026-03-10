@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { cookies } from 'next/headers';
 import type { Booking } from '@/lib/db';
+import { sanitizeHeaderValue } from '@/lib/booking';
 
 async function validateSession(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -78,10 +79,11 @@ export async function DELETE(req: Request) {
       }
 
       // 3. Send manual cancellation email over Gmail
-      const ownerEmail = process.env.OWNER_EMAIL ?? 'hflsforeverhao@gmail.com';
+      const ownerEmail = sanitizeHeaderValue(process.env.OWNER_EMAIL ?? 'hflsforeverhao@gmail.com');
+      const guestEmail = sanitizeHeaderValue(b.email);
       const rawMessage = [
         `From: ${ownerEmail}`,
-        `To: ${b.email}`,
+        `To: ${guestEmail}`,
         `Subject: Booking Cancelled - Hao Liang`,
         `Content-Type: text/plain; charset=utf-8`,
         ``,
