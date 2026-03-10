@@ -13,6 +13,7 @@ type Booking = {
   email: string;
   notes: string | null;
   created_at: string;
+  status?: string;
 };
 
 type Stats = {
@@ -55,6 +56,11 @@ export default function AdminPage() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [filterType, setFilterType] = useState('all');
   const [deleteMsg, setDeleteMsg] = useState('');
+
+  // Cancel modal state
+  const [cancelModal, setCancelModal] = useState<Booking | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   // Try fetching stats immediately — if the cookie exists, we're already logged in
   useEffect(() => {
@@ -106,15 +112,37 @@ export default function AdminPage() {
     setStats(null);
   }
 
-  async function handleDelete(id: number) {
-    await fetch('/api/admin/stats', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    setDeleteMsg(`Booking #${id} deleted.`);
-    await tryFetchStats();
-    setTimeout(() => setDeleteMsg(''), 3000);
+  function openCancelModal(booking: Booking) {
+    setCancelModal(booking);
+    setCancelReason('');
+    setCancelling(false);
+  }
+
+  function closeCancelModal() {
+    if (cancelling) return; // prevent closing while processing
+    setCancelModal(null);
+    setCancelReason('');
+  }
+
+  async function handleConfirmCancel() {
+    if (!cancelModal) return;
+    setCancelling(true);
+    try {
+      await fetch('/api/admin/stats', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: cancelModal.id, reason: cancelReason }),
+      });
+      setDeleteMsg(`Booking #${cancelModal.id} cancelled and guest notified.`);
+      setCancelModal(null);
+      setCancelReason('');
+      await tryFetchStats();
+      setTimeout(() => setDeleteMsg(''), 4000);
+    } catch {
+      setDeleteMsg('Failed to cancel booking.');
+    } finally {
+      setCancelling(false);
+    }
   }
 
   /* ──────────── LOGIN SCREEN ──────────── */
@@ -246,6 +274,7 @@ export default function AdminPage() {
                       <th>Time</th>
                       <th>Name</th>
                       <th>Email</th>
+                      <th>Status</th>
                       <th>Notes</th>
                       <th>Booked At</th>
                       <th></th>
@@ -267,13 +296,18 @@ export default function AdminPage() {
                         <td>{b.time}</td>
                         <td><strong>{b.name}</strong></td>
                         <td><a href={`mailto:${b.email}`}>{b.email}</a></td>
+                        <td>
+                          <span className={`status-badge status-${b.status ?? 'confirmed'}`}>
+                            {b.status ?? 'confirmed'}
+                          </span>
+                        </td>
                         <td className="td-notes">{b.notes ?? '—'}</td>
                         <td className="td-date">{new Date(b.created_at).toLocaleString()}</td>
                         <td>
                           <button
                             className="delete-btn"
-                            onClick={() => handleDelete(b.id)}
-                            title="Delete booking"
+                            onClick={() => openCancelModal(b)}
+                            title="Cancel booking"
                           >
                             🗑
                           </button>
@@ -287,6 +321,75 @@ export default function AdminPage() {
           </div>
         </>
       )}
+
+      {/* ──────────── CANCEL MODAL ──────────── */}
+      {cancelModal && (
+        <div className="modal-overlay" onClick={closeCancelModal} id="cancel-modal-overlay">
+          <div className="modal-card" onClick={e => e.stopPropagation()} id="cancel-modal">
+            <div className="modal-header">
+              <h2>Cancel Booking</h2>
+              <button className="modal-close" onClick={closeCancelModal} aria-label="Close">✕</button>
+            </div>
+
+            <div className="modal-body">
+              <div className="modal-booking-info">
+                <div className="modal-info-row">
+                  <span className="modal-label">Guest</span>
+                  <span><strong>{cancelModal.name}</strong> ({cancelModal.email})</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="modal-label">Event</span>
+                  <span>{TYPE_ICONS[cancelModal.type]} {TYPE_LABELS[cancelModal.type] ?? cancelModal.type}</span>
+                </div>
+                <div className="modal-info-row">
+                  <span className="modal-label">When</span>
+                  <span>{cancelModal.date} at {cancelModal.time}</span>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 20 }}>
+                <label htmlFor="cancel-reason">Cancellation Reason (optional)</label>
+                <textarea
+                  id="cancel-reason"
+                  rows={3}
+                  value={cancelReason}
+                  onChange={e => setCancelReason(e.target.value)}
+                  placeholder="Leave blank to use default: &quot;Due to personal health reasons…&quot;"
+                  style={{
+                    background: 'var(--bg3)',
+                    border: '1.5px solid var(--border)',
+                    color: 'var(--text)',
+                    padding: '11px 13px',
+                    borderRadius: '9px',
+                    fontFamily: 'inherit',
+                    fontSize: '0.95rem',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+
+              <p className="modal-note">
+                This will delete the booking, remove the calendar event, and send a cancellation email to the guest.
+              </p>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={closeCancelModal} disabled={cancelling}>
+                Keep Booking
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={handleConfirmCancel}
+                disabled={cancelling}
+                id="confirm-cancel-btn"
+              >
+                {cancelling ? '⏳ Cancelling…' : '🗑 Confirm Cancellation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

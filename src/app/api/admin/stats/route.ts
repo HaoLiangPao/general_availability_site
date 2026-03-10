@@ -46,8 +46,12 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = await req.json();
+    const { id, reason } = await req.json();
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+    const cancellationReason = reason?.trim()
+      ? reason.trim()
+      : 'Due to personal health reasons, this meeting can no longer take place.';
 
     const sql = getDb();
     
@@ -74,18 +78,29 @@ export async function DELETE(req: Request) {
       }
 
       // 3. Send manual cancellation email over Gmail
+      const ownerEmail = process.env.OWNER_EMAIL ?? 'hflsforeverhao@gmail.com';
       const rawMessage = [
-        `From: ${process.env.OWNER_EMAIL ?? 'hflsforeverhao@gmail.com'}`,
+        `From: ${ownerEmail}`,
         `To: ${b.email}`,
         `Subject: Booking Cancelled - Hao Liang`,
         `Content-Type: text/plain; charset=utf-8`,
         ``,
         `Hi ${b.name},`,
         ``,
-        `Your booking on ${b.date} at ${b.time} has been officially cancelled.`,
-        `If you have any questions, please reach out to Hao directly.`,
+        `We regret to inform you that your booking has been cancelled.`,
         ``,
-        `Best,`,
+        `─────────────────────────────────`,
+        ` Event:   ${b.type === 'interview' ? 'Job Interview' : b.type === 'coffee' ? 'Coffee Chat' : b.type === 'in_person' ? 'In-Person Event' : b.type === 'ski_lesson' ? 'Ski Lesson' : b.type}`,
+        ` Date:    ${b.date}`,
+        ` Time:    ${b.time}`,
+        `─────────────────────────────────`,
+        ``,
+        `Reason: ${cancellationReason}`,
+        ``,
+        `We apologize for any inconvenience. If you would like to reschedule,`,
+        `please visit the booking site or reach out to Hao directly.`,
+        ``,
+        `Best regards,`,
         `Hao Liang`
       ].join('\n');
   

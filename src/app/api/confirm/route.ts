@@ -75,13 +75,16 @@ export async function GET(req: Request) {
     // Rather than returning raw JSON, return an HTML confirmation wrapper so Hao gets a nice page
     return new NextResponse(`
       <html>
-        <head><title>Confirmed</title></head>
+        <head>
+          <meta charset="utf-8">
+          <title>Confirmed</title>
+        </head>
         <body style="font-family:sans-serif; text-align:center; padding-top: 50px;">
           <h1 style="color:green;">Interview Confirmed Successfully ✅</h1>
           <p>The status was changed to 'confirmed' and emails/invites have been dispatched to ${booking.email}.</p>
         </body>
       </html>
-    `, { headers: { 'Content-Type': 'text/html' } });
+    `, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 
   } catch (err) {
     console.error('[confirm API] Error', err);
