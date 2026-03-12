@@ -21,6 +21,9 @@ export function getDb() {
 // Run once after creating the database (npm run migrate)
 export async function initDb() {
   const sql = getSql();
+
+  await sql`CREATE EXTENSION IF NOT EXISTS btree_gist`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS bookings (
       id                SERIAL PRIMARY KEY,
@@ -33,13 +36,32 @@ export async function initDb() {
       status            TEXT NOT NULL DEFAULT 'confirmed',
       confirm_token     TEXT,
       calendar_event_id TEXT,
-      created_at        TIMESTAMPTZ DEFAULT NOW()
+      start_at          TIMESTAMPTZ NOT NULL,
+      end_at            TIMESTAMPTZ NOT NULL,
+      created_at        TIMESTAMPTZ DEFAULT NOW(),
+
+      CONSTRAINT no_overlap_active
+        EXCLUDE USING gist (
+          tstzrange(start_at, end_at, '[)') WITH &&
+        )
+        WHERE (status IN ('pending', 'confirmed'))
     )
   `;
   await sql`
     CREATE TABLE IF NOT EXISTS admin_sessions (
       token      TEXT PRIMARY KEY,
       created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS slot_overrides (
+      id         SERIAL PRIMARY KEY,
+      date       TEXT NOT NULL,
+      time       TEXT NOT NULL,
+      action     TEXT NOT NULL CHECK (action IN ('block', 'force_open')),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(date, time)
     )
   `;
 }
@@ -52,8 +74,19 @@ export type Booking = {
   name: string;
   email: string;
   notes: string | null;
-  status?: string;
-  confirm_token?: string | null;
-  calendar_event_id?: string | null;
+  status: string;
+  confirm_token: string | null;
+  calendar_event_id: string | null;
+  start_at: string;
+  end_at: string;
   created_at: string;
 };
+
+export type SlotOverride = {
+  id: number;
+  date: string;
+  time: string;
+  action: 'block' | 'force_open';
+  created_at: string;
+};
+

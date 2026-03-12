@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import ThemeToggle from '@/components/ThemeToggle';
+import { CANDIDATE_TIMES } from '@/lib/booking';
 import './admin.css';
 
 type Booking = {
@@ -62,10 +63,47 @@ export default function AdminPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
+  // Schedule override state
+  type OverrideAction = 'block' | 'force_open';
+  type OverrideMap = Record<string, OverrideAction>; // time -> action
+  const [overrideDate, setOverrideDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1); // tomorrow in local time
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
+  const [overrides, setOverrides] = useState<OverrideMap>({});
+  const [loadingOverrides, setLoadingOverrides] = useState(false);
+  const [overrideMsg, setOverrideMsg] = useState('');
+
   // Try fetching stats immediately — if the cookie exists, we're already logged in
   useEffect(() => {
     tryFetchStats();
   }, []);
+
+  // Fetch overrides when date changes
+  const fetchOverrides = useCallback(async (date: string) => {
+    setLoadingOverrides(true);
+    try {
+      const res = await fetch(`/api/admin/overrides?date=${date}`);
+      if (res.ok) {
+        const data = await res.json();
+        const map: OverrideMap = {};
+        for (const o of data.overrides ?? []) {
+          map[o.time] = o.action;
+        }
+        setOverrides(map);
+      }
+    } finally {
+      setLoadingOverrides(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authed && overrideDate) fetchOverrides(overrideDate);
+  }, [authed, overrideDate, fetchOverrides]);
 
   async function tryFetchStats() {
     setLoadingStats(true);
@@ -110,6 +148,50 @@ export default function AdminPage() {
     await fetch('/api/admin/logout', { method: 'POST' });
     setAuthed(false);
     setStats(null);
+  }
+
+  async function toggleOverride(time: string) {
+    const current = overrides[time]; // undefined | 'block' | 'force_open'
+    // Cycle: default → block → force_open → default
+    try {
+      if (!current) {
+        // Set to block
+        const res = await fetch('/api/admin/overrides', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: overrideDate, time, action: 'block' }),
+        });
+        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        setOverrides(prev => ({ ...prev, [time]: 'block' }));
+      } else if (current === 'block') {
+        // Switch to force_open
+        const res = await fetch('/api/admin/overrides', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: overrideDate, time, action: 'force_open' }),
+        });
+        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        setOverrides(prev => ({ ...prev, [time]: 'force_open' }));
+      } else {
+        // Remove override (back to default)
+        const res = await fetch('/api/admin/overrides', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: overrideDate, time }),
+        });
+        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        setOverrides(prev => {
+          const next = { ...prev };
+          delete next[time];
+          return next;
+        });
+      }
+      setOverrideMsg('');
+    } catch (err) {
+      setOverrideMsg(`⚠️ Failed to update override for ${time}: ${err instanceof Error ? err.message : 'unknown error'}`);
+      // Re-fetch to ensure UI matches server state
+      fetchOverrides(overrideDate);
+    }
   }
 
   function openCancelModal(booking: Booking) {
@@ -318,6 +400,69 @@ export default function AdminPage() {
                 </table>
               </div>
             )}
+          </div>
+          {/* ──────────── SCHEDULE MANAGEMENT ──────────── */}
+          <div className="card" style={{ marginTop: 28 }}>
+            <div className="table-header">
+              <h2 className="col-title" style={{ marginBottom: 0 }}>🗓 Schedule Overrides</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  type="date"
+                  value={overrideDate}
+                  onChange={e => setOverrideDate(e.target.value)}
+                  className="override-date-input"
+                  id="override-date-picker"
+                />
+              </div>
+            </div>
+
+            <p className="text-muted" style={{ fontSize: '0.83rem', marginBottom: 16 }}>
+              Click a slot to cycle: <span className="override-legend-default">Default</span> →{' '}
+              <span className="override-legend-block">🚫 Blocked</span> →{' '}
+              <span className="override-legend-open">✅ Force Open</span> → Default
+            </p>
+
+            {loadingOverrides ? (
+              <p className="text-muted">Loading…</p>
+            ) : (
+              <div className="override-grid">
+                {(CANDIDATE_TIMES as readonly string[]).map(time => {
+                  const action = overrides[time];
+                  let cls = 'override-slot';
+                  let label = time;
+                  let icon = '';
+                  if (action === 'block') {
+                    cls += ' override-blocked';
+                    icon = '🚫 ';
+                  } else if (action === 'force_open') {
+                    cls += ' override-open';
+                    icon = '✅ ';
+                  }
+                  return (
+                    <button
+                      key={time}
+                      className={cls}
+                      onClick={() => toggleOverride(time)}
+                      title={
+                        action === 'block'
+                          ? 'Blocked by host — click to force open'
+                          : action === 'force_open'
+                            ? 'Force opened — click to reset to default'
+                            : 'Default (calendar) — click to block'
+                      }
+                    >
+                      <span className="override-slot-icon">{icon}</span>
+                      <span className="override-slot-time">{label}</span>
+                      <span className="override-slot-status">
+                        {action === 'block' ? 'Blocked' : action === 'force_open' ? 'Open' : 'Default'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {overrideMsg && <div className="sync-toast" style={{ marginTop: 14 }}>{overrideMsg}</div>}
           </div>
         </>
       )}

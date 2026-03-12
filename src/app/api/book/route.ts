@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { createBookingEvent, filterAvailableSlots, getAllBusySlots, parseDateTimeLocal } from '@/lib/calendar';
+import { createBookingEvent, parseDateTimeLocal } from '@/lib/calendar';
+import { resolveSlots } from '@/lib/availability';
 import { randomUUID } from 'crypto';
 import {
   DURATIONS,
@@ -39,41 +40,55 @@ export async function POST(req: Request) {
     const status = isInterview ? 'pending' : 'confirmed';
     const durationMinutes = DURATIONS[type];
 
+    // Compute canonical timestamps once
+    const startAt = parseDateTimeLocal(date, time);
+    const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
+
+    // Full availability check — same resolver as GET /api/availability.
+    // Enforces: block overrides, DB booking overlaps, external calendar busy.
+    // force_open bypasses external calendar but not DB bookings.
+    const [resolution] = await resolveSlots(date, [time], durationMinutes);
+    if (!resolution.available) {
+      const msg = resolution.override === 'block'
+        ? 'This time slot has been closed by the host. Please pick another time.'
+        : 'That slot is no longer available. Please refresh and pick another time.';
+      return NextResponse.json({ error: msg }, { status: 409 });
+    }
+
+    // Insert with start_at/end_at — the DB exclusion constraint is the final guard
+    // against concurrent requests that pass the resolver simultaneously.
     const sql = getDb();
-    const busy = await getAllBusySlots(30);
-    const dbBookings = await sql`
-      SELECT date, time, type
-      FROM bookings
-      WHERE date = ${date} AND status IN ('pending', 'confirmed')
-    `;
-    for (const booking of dbBookings) {
-      const existingDuration = DURATIONS[booking.type as keyof typeof DURATIONS] ?? 45;
-      const slotStart = parseDateTimeLocal(booking.date, booking.time);
-      const slotEnd = new Date(slotStart.getTime() + existingDuration * 60_000);
-      busy.push({ start: slotStart.toISOString(), end: slotEnd.toISOString() });
+    let id: number;
+    try {
+      const result = await sql`
+        INSERT INTO bookings (type, date, time, name, email, notes, status, confirm_token, start_at, end_at)
+        VALUES (
+          ${type}, ${date}, ${time}, ${name}, ${email}, ${notes || null},
+          ${status}, ${confirmToken},
+          ${startAt.toISOString()}::timestamptz,
+          ${endAt.toISOString()}::timestamptz
+        )
+        RETURNING id
+      `;
+      id = result[0]?.id;
+    } catch (dbErr: unknown) {
+      // Postgres exclusion_violation = 23P01 (concurrent race)
+      const pgCode = (dbErr as { code?: string })?.code;
+      if (pgCode === '23P01') {
+        return NextResponse.json(
+          { error: 'That slot is no longer available. Please refresh and pick another time.' },
+          { status: 409 }
+        );
+      }
+      throw dbErr;
     }
-
-    const requestedSlot = filterAvailableSlots(date, [time], durationMinutes, busy)[0];
-    if (!requestedSlot?.available) {
-      return NextResponse.json(
-        { error: 'That slot is no longer available. Please refresh availability and pick another time.' },
-        { status: 409 }
-      );
-    }
-
-    const result = await sql`
-      INSERT INTO bookings (type, date, time, name, email, notes, status, confirm_token)
-      VALUES (${type}, ${date}, ${time}, ${name}, ${email}, ${notes || null}, ${status}, ${confirmToken})
-      RETURNING id
-    `;
-    const id = result[0]?.id;
 
     const protocol = req.headers.get('x-forwarded-proto') ?? 'http';
     const host = req.headers.get('host') ?? 'localhost:3000';
     const baseUrl = `${protocol}://${host}`;
     const confirmLink = isInterview ? `${baseUrl}/api/confirm?token=${confirmToken}` : undefined;
 
-    // 2. Create Google Calendar event + send owner notification (best-effort)
+    // Create Google Calendar event + send owner notification (best-effort)
     const calResult = await createBookingEvent({
       type,
       typeLabel:       TYPE_LABELS[type] ?? type,
@@ -88,6 +103,7 @@ export async function POST(req: Request) {
     });
 
     if (calResult.error) {
+      // Calendar failed — roll back the DB insert so the slot is freed
       await sql`DELETE FROM bookings WHERE id = ${id}`;
       return NextResponse.json(
         { success: false, error: 'Unable to reserve this time right now. Please try again.' },
