@@ -53,6 +53,7 @@ export default function BookingWidget({
     guests: params.guests,
     location: mt.locations[0],
     invPhone: "",
+    promoCode: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -68,7 +69,9 @@ export default function BookingWidget({
     () => mt.durations.find((d) => d.minutes === durationMinutes) ?? mt.durations[0],
     [mt.durations, durationMinutes]
   );
-  const paid = Boolean(selectedDuration.priceCents && selectedDuration.priceCents > 0);
+  const discount = form.promoCode.trim().toUpperCase() === mt.promoCode ? (mt.promoDiscountCents ?? 0) : 0;
+  const quotedAmount = Math.max(0, (selectedDuration.priceCents ?? 0) - discount);
+  const paid = quotedAmount > 0 && mt.paymentMethod !== "etransfer";
   const utm = useMemo(() => ({ ...params.utm, ...parentUtm }), [params.utm, parentUtm]);
 
   function updateForm(patch: Partial<FormState>) {
@@ -105,13 +108,17 @@ export default function BookingWidget({
   }, []);
 
   function finish(booking: ConfirmedBooking, redirectUrl: string | null) {
-    emitEmbed(
-      ctx,
-      "booked",
-      { bookingId: booking.id, startTime: booking.startTime, endTime: booking.endTime, name: booking.name, email: booking.email, paid },
-      "bookkit.booked",
-      { slug: mt.slug, bookingId: booking.id, startTime: booking.startTime, timezone: booking.timezone }
-    );
+    if (booking.status === "PENDING_APPROVAL") {
+      emitEmbed(ctx, "approval_requested", { bookingId: booking.id, startTime: booking.startTime, email: booking.email });
+    } else {
+      emitEmbed(
+        ctx,
+        "booked",
+        { bookingId: booking.id, startTime: booking.startTime, endTime: booking.endTime, name: booking.name, email: booking.email, paid },
+        "bookkit.booked",
+        { slug: mt.slug, bookingId: booking.id, startTime: booking.startTime, timezone: booking.timezone }
+      );
+    }
     if (redirectUrl) {
       // The server already appended booking details iff the host enabled redirectPassParams.
       const dest = redirectUrl;
@@ -176,6 +183,7 @@ export default function BookingWidget({
       elapsedMs: payload.elapsedMs,
       utm: Object.keys(utm).length ? utm : undefined,
       link: params.link || undefined,
+      promoCode: payload.promoCode.trim() || undefined,
     };
 
     try {
@@ -246,7 +254,12 @@ export default function BookingWidget({
   if (step === "confirmed" && confirmed) {
     return (
       <div ref={rootRef} style={accentStyle} data-testid="bk-confirmed" className="bk-card p-6 sm:p-8 max-w-md mx-auto">
-        <Confirmation booking={confirmed} meetingTypeName={mt.name} showManageLinks={false} />
+        {confirmed.status === "PENDING_APPROVAL" ? (
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Request received</h2>
+            <p className="text-sm text-[var(--bk-muted)]">The host will review this time. It is not confirmed until you receive an email.</p>
+          </div>
+        ) : <Confirmation booking={confirmed} meetingTypeName={mt.name} currency={mt.currency} showManageLinks={false} />}
         {embed && (
           <button type="button" className="bk-btn bk-btn-ghost w-full mt-3" onClick={() => emitEmbed(ctx, "close")}>
             Done
@@ -276,7 +289,7 @@ export default function BookingWidget({
           bookingId={payment.bookingId}
           expiresAt={payment.expiresAt}
           accentColor={mt.color}
-          amountLabel={money(selectedDuration.priceCents!, mt.currency)}
+          amountLabel={money(quotedAmount, mt.currency)}
           onPaid={(id: string) => pollUntilConfirmed(id, payment.token)}
           onExpired={() => backToCalendar("That hold expired. Pick a time again.")}
         />
@@ -297,7 +310,7 @@ export default function BookingWidget({
         </p>
         <p className="text-xs text-[var(--bk-muted)] mb-5">
           {durationMinutes} min · {when.toFormat("ZZZZ")}
-          {paid ? ` · ${money(selectedDuration.priceCents!, mt.currency)}` : ""}
+          {quotedAmount ? ` · ${money(quotedAmount, mt.currency)}${mt.paymentMethod === "etransfer" ? " due by e-transfer" : ""}` : ""}
         </p>
         <DetailsForm
           meetingType={mt}
@@ -305,7 +318,7 @@ export default function BookingWidget({
           onChange={updateForm}
           error={formError}
           submitting={submitting}
-          submitLabel={paid ? (stripePublishableKey ? "Continue to payment" : `Pay ${money(selectedDuration.priceCents!, mt.currency)} and book`) : "Confirm booking"}
+          submitLabel={mt.requiresApproval ? "Request this time" : paid ? (stripePublishableKey ? "Continue to payment" : `Pay ${money(quotedAmount, mt.currency)} and book`) : mt.paymentMethod === "etransfer" ? "Book and pay by e-transfer" : "Confirm booking"}
           onSubmit={submitDetails}
           onBack={() => backToCalendar()}
         />

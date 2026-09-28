@@ -74,6 +74,7 @@ export function pausedMessage(host: Host, now = new Date()): string | null {
 export function liveBookingStatusFilter(now: Date) {
   return [
     { status: "CONFIRMED" as const },
+    { status: "PENDING_APPROVAL" as const },
     { status: "PENDING_PAYMENT" as const, expiresAt: { gt: now } },
     { status: "PENDING_PAYMENT" as const, stripePaymentStatus: "paid" },
   ];

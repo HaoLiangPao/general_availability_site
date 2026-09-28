@@ -234,6 +234,7 @@ export type BookingInput = {
   utm?: Record<string, string> | null;
   /** Token of a single-use link this booking consumes. */
   singleUseToken?: string | null;
+  promoCode?: string | null;
   /** Set only by the public agent endpoint: tags the booking and applies the per-email cap. */
   agent?: { client?: string | null } | null;
 };
@@ -251,14 +252,18 @@ export class AgentLimitError extends Error {
 export function priceFor(
   mt: MeetingType,
   durationMinutes: number,
-  link?: Pick<SingleUseLink, "priceCents"> | null
+  link?: Pick<SingleUseLink, "priceCents"> | null,
+  promoCode?: string | null
 ): number | null {
   if (link && link.priceCents !== null && link.priceCents !== undefined) {
     return link.priceCents > 0 ? link.priceCents : null;
   }
   const choice = durationChoices(mt).find((d) => d.minutes === durationMinutes);
   const p = choice ? choice.priceCents : mt.priceCents;
-  return p && p > 0 ? p : null;
+  if (!p || p <= 0) return null;
+  return promoCode && mt.promoCode && promoCode === mt.promoCode
+    ? Math.max(0, p - (mt.promoDiscountCents ?? 0))
+    : p;
 }
 
 /** Validate and resolve a single-use link for this meeting type. */
@@ -340,9 +345,10 @@ async function reserveSlot(
   const link = await resolveSingleUseLink(mt, input.singleUseToken);
   const duration = resolveDuration(mt, input.durationMinutes, link);
   const location = resolveLocation(mt, input.location);
-  const amountCents = priceFor(mt, duration, link);
-  if (opts.paid !== Boolean(amountCents)) {
-    throw new InvalidSlotError(amountCents ? "This meeting requires payment." : "This meeting is free.");
+  const amountCents = priceFor(mt, duration, link, input.promoCode);
+  const needsStripe = Boolean(amountCents && mt.paymentMethod !== "etransfer");
+  if (opts.paid !== needsStripe) {
+    throw new InvalidSlotError(needsStripe ? "This meeting requires payment." : "This meeting does not use online payment.");
   }
 
   const startTime = input.startTime;
@@ -407,6 +413,9 @@ async function reserveSlot(
           endTime,
           status: "PENDING_PAYMENT",
           amountCents,
+          paymentMethod: amountCents ? mt.paymentMethod : null,
+          promoCodeApplied: input.promoCode || null,
+          stripePaymentStatus: amountCents && mt.paymentMethod === "etransfer" ? "unpaid" : null,
           expiresAt: new Date(now.getTime() + opts.holdMinutes * 60_000),
           cancelToken: newManageToken(),
         },
@@ -491,11 +500,13 @@ export async function writeCalendarEvent(bookingId: string): Promise<Booking> {
  * if it fails the booking is still confirmed (the slot is ours in the DB), a
  * calendar.create job keeps retrying and the host is alerted.
  */
-async function confirmBooking(bookingId: string): Promise<Booking> {
-  let booking = await prisma.booking.update({
-    where: { id: bookingId },
+async function confirmBooking(bookingId: string, expectedStatus: "PENDING_PAYMENT" | "PENDING_APPROVAL" = "PENDING_PAYMENT"): Promise<Booking> {
+  const claimed = await prisma.booking.updateMany({
+    where: { id: bookingId, status: expectedStatus },
     data: { status: "CONFIRMED", expiresAt: null },
   });
+  if (!claimed.count) throw new ChangeNotAllowedError("This request is no longer awaiting confirmation.");
+  let booking = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
   await audit(bookingId, "confirmed");
 
   try {
@@ -562,12 +573,40 @@ async function drainFor(bookingId: string) {
   );
 }
 
+/** Interview requests reserve the slot without sending an invite until the host approves. */
+export async function createApprovalBooking(host: Host, mt: MeetingTypeFull, input: BookingInput): Promise<Booking> {
+  if (!mt.requiresApproval) throw new InvalidSlotError("This meeting does not require approval.");
+  if (priceFor(mt, resolveDuration(mt, input.durationMinutes), null, input.promoCode)) {
+    throw new InvalidSlotError("Paid requests cannot require approval.");
+  }
+  const held = await reserveSlot(host, mt, input, { holdMinutes: FREE_HOLD_MINUTES, paid: false });
+  const claimed = await prisma.booking.updateMany({
+    where: { id: held.id, status: "PENDING_PAYMENT", expiresAt: { gt: new Date() } },
+    data: { status: "PENDING_APPROVAL", expiresAt: null },
+  });
+  if (!claimed.count) throw new SlotTakenError("This request could not reserve the time. Pick another slot.");
+  const booking = await prisma.booking.findUniqueOrThrow({ where: { id: held.id } });
+  await audit(booking.id, "approval_requested");
+  await enqueue("email", { template: "approval_invitee" }, { bookingId: booking.id, dedupeKey: `email:approval_invitee:${booking.id}` });
+  await enqueue("email", { template: "approval_host" }, { bookingId: booking.id, dedupeKey: `email:approval_host:${booking.id}` });
+  await drainFor(booking.id);
+  return booking;
+}
+
+/** Only the authenticated admin route calls this. The status claim prevents double approval. */
+export async function approveBooking(bookingId: string): Promise<Booking> {
+  const booking = await confirmBooking(bookingId, "PENDING_APPROVAL");
+  await drainFor(booking.id);
+  return prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
+}
+
 /** Free meeting type: reserve, confirm, run side effects. */
 export async function createFreeBooking(
   host: Host,
   mt: MeetingTypeFull,
   input: BookingInput
 ): Promise<Booking> {
+  if (mt.requiresApproval) throw new InvalidSlotError("This meeting requires host approval.");
   const held = await reserveSlot(host, mt, input, { holdMinutes: FREE_HOLD_MINUTES, paid: false });
   const booking = await confirmBooking(held.id);
   await drainFor(booking.id);
@@ -593,7 +632,7 @@ export async function startPaidCheckout(
       customer_email: booking.email,
       client_reference_id: booking.id,
       expires_at: Math.floor(Date.now() / 1000) + STRIPE_SESSION_MINUTES * 60,
-      allow_promotion_codes: true,
+      allow_promotion_codes: !mt.promoCode,
       line_items: [
         {
           quantity: 1,
@@ -883,7 +922,9 @@ export type ChangePolicy = { allowed: boolean; reason?: string; refundOnCancel: 
 /** What an invitee may do with a booking right now. Hosts are never restricted. */
 export function inviteePolicy(booking: Booking, mt: MeetingType, now = new Date()): ChangePolicy {
   if (booking.status !== "CONFIRMED") {
-    return { allowed: false, reason: "This booking can no longer be changed.", refundOnCancel: false };
+    return { allowed: false, reason: booking.status === "PENDING_APPROVAL"
+      ? "This request is waiting for host approval. Contact the host if you need to withdraw it."
+      : "This booking can no longer be changed.", refundOnCancel: false };
   }
   if (booking.startTime.getTime() <= now.getTime()) {
     return { allowed: false, reason: "This meeting has already started.", refundOnCancel: false };

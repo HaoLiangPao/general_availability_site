@@ -83,6 +83,21 @@ describe("hold and checkout", () => {
     expect(memoryCalendarControl.eventCount()).toBe(0);
   });
 
+  test("legacy WINTER10 is applied to the actual Stripe Checkout amount", async () => {
+    const host = await createHost();
+    const ski = await createPaidMeetingType(host, {
+      priceCents: 10000,
+      promoCode: "WINTER10",
+      promoDiscountCents: 1000,
+    });
+    const { booking } = await startPaidCheckout(host, ski, bookingInput({ promoCode: "WINTER10" }));
+    const checkout = stripeMock.checkout.sessions.create.mock.calls[0][0];
+    expect(booking.amountCents).toBe(9000);
+    expect(booking.promoCodeApplied).toBe("WINTER10");
+    expect(checkout.line_items[0].price_data.unit_amount).toBe(9000);
+    expect(checkout.allow_promotion_codes).toBe(false);
+  });
+
   test("the database hold outlives the Stripe session", async () => {
     const host = await createHost();
     const meetingType = await createPaidMeetingType(host);

@@ -18,6 +18,9 @@
 | `DATABASE_URL` | `<新版 Postgres 的运行时连接串，优先使用连接池>` | Vercel Environment Variables（Secret） | [ ] |
 | `DIRECT_URL` | `<同一数据库的迁移专用直连或 session pooler 连接串>` | Vercel Environment Variables（Secret） | [ ] |
 | `ADMIN_EMAIL` | `<网站主人用于连接 Google 的邮箱>` | Vercel Environment Variables | [ ] |
+| `HOST_TIMEZONE` | `<预约日程时区，如 America/Toronto>` | Vercel Environment Variables / 初始化脚本 | [ ] |
+| `HOST_DISPLAY_NAME` | `<品牌页与邀请显示的主人姓名>` | Vercel Environment Variables / 初始化脚本 | [ ] |
+| `LEGACY_CURRENCY` | `<确认旧站 $ 实际代表的三位币种，默认 usd>` | Vercel Environment Variables / 初始化脚本 | [ ] |
 | `ADMIN_PASSWORD` | `<新生成的强密码>` | Vercel Environment Variables（Secret） | [ ] |
 | `GOOGLE_CLIENT_ID` | `<Google Cloud OAuth Web Client ID>` | Vercel Environment Variables | [ ] |
 | `GOOGLE_CLIENT_SECRET` | `<同一 OAuth Client 的 Secret>` | Vercel Environment Variables（Secret） | [ ] |
@@ -32,6 +35,7 @@ Google Cloud 还需启用 Calendar API，配置 OAuth consent screen，并将正
 
 - [ ] **令牌静态加密（建议）**：`TOKEN_ENCRYPTION_KEY`（新生成的 Secret）；设置后确认已有 Google 连接令牌的迁移或重连方式。
 - [ ] **系统邮件**：`RESEND_API_KEY`（Secret）、`RESEND_FROM`（已验证发件地址）；验证确认、取消、改期和提醒邮件。未启用时，不能依赖应用自身发这些邮件。
+- [ ] **电子转账滑雪课**：`ETRANSFER_RECIPIENT_EMAIL`（真实已确认的收款邮箱）；未设置时该预约类型不公开。电子转账由主人线下核实，网站仅记录应收，不能显示已收款。
 - [ ] **收费预约**：`STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`（均为 Secret），以及需要站内卡片表单时的 `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`；先用 Stripe 测试模式验证付款、取消和退款，再决定正式收款。
 - [ ] **故障通知**：`ALERT_EMAIL`，按需设置 `ALERT_WEBHOOK_URL`（Secret）；验证日历断连和失败任务告警。
 - [ ] **对外集成**：需要 REST API 时在后台生成 API Key；需要出站 Webhook 时设置目标与签名密钥。密钥只在服务端保管，不写入本文件。
@@ -39,13 +43,15 @@ Google Cloud 还需启用 Calendar API，配置 OAuth consent screen，并将正
 
 ## 4. 部署和验收
 
-- [ ] 在新版数据库运行 `npm run db:deploy`；运行 `npm run setup` 或等效初始化，创建第一个 Host、Schedule、Brand 和可预约的 Event Type。
+- [ ] 在新版数据库运行 `npm run db:deploy`；运行 `npm run seed:legacy`，创建 Host、Brand 和四类旧站预约入口（滑雪课两个支付选项）。如果之后才补齐 Stripe 或电子转账配置，在后台启用对应类型。详见 [旧站功能迁移对照](LEGACY_FEATURE_MIGRATION.md)。
 - [ ] Vercel Framework Preset 保持 `Next.js`；部署产物应包含页面和 API 函数，不能仅凭 Ready 状态判断可用。
 - [ ] Vercel Hobby 不支持每 10 分钟的 Cron。待工作流进入默认分支后，配置上述 `BOOKKIT_URL` / `CRON_SECRET`，验证 GitHub Actions 定时调用 `/api/cron/tick`。
 - [ ] 检查 `/api/health` 返回 200，数据库、Google Calendar、Cron、任务队列等关键检查均为正常。
 - [ ] 用测试身份完整走通：查看可用时间 → 免费预约 → Google 日历事件和邀请 → 改期 → 取消；检查时区和移动端。
 - [ ] 若启用收费，走通 Stripe 测试付款、Webhook、退款和失败重试；之后再开启真实付款。
-- [ ] 验证面试主持人确认流程和滑雪课定价/优惠规则达到产品要求后，再考虑替换旧生产站。
+- [ ] 验证面试申请 → 待审批 → 后台批准/拒绝 → 邀请与通知；检查无邮件配置时后台“Needs attention”仍可看到申请。
+- [ ] 核对旧站 `$` 实际币种，并验证滑雪课刷卡 100、电子转账应收 90、`WINTER10` 分别减 10；电子转账核销为人工流程。
+- [ ] 历史预约与客户数据需要单独备份、映射与导入；当前功能迁移脚本不会复制旧数据。完成这些验收后再考虑替换旧生产站。
 - [ ] 记录切换日期、备份位置和回退步骤；切换后监控健康检查与失败任务。
 
 参考：`.env.example`、`README.md`、`docs/RELIABILITY.md`、PR #2。

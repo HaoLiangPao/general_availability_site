@@ -1,4 +1,4 @@
-import { createFreeBooking, priceFor, resolveDuration, resolveSingleUseLink } from "@/lib/booking";
+import { createApprovalBooking, createFreeBooking, priceFor, resolveDuration, resolveSingleUseLink } from "@/lib/booking";
 import { parseBookingRequest, publicBooking } from "@/lib/booking-request";
 import { apiBookingErrorResponse, apiFail, apiOk, corsPreflight, requireApiKey } from "@/lib/api-auth";
 import { appUrl } from "@/lib/env";
@@ -15,7 +15,7 @@ export function OPTIONS() {
   return corsPreflight();
 }
 
-const STATUSES = ["PENDING_PAYMENT", "CONFIRMED", "EXPIRED", "CANCELLED", "FAILED_NEEDS_INTERVENTION"] as const;
+const STATUSES = ["PENDING_PAYMENT", "PENDING_APPROVAL", "CONFIRMED", "EXPIRED", "CANCELLED", "FAILED_NEEDS_INTERVENTION"] as const;
 
 /** GET /api/v1/bookings?status&from&to&email&limit&cursor — cursor-paginated, newest start first. */
 export async function GET(req: Request) {
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
 
   try {
     const link = await resolveSingleUseLink(meetingType, input.singleUseToken);
-    const amount = priceFor(meetingType, resolveDuration(meetingType, input.durationMinutes, link), link);
+    const amount = priceFor(meetingType, resolveDuration(meetingType, input.durationMinutes, link), link, input.promoCode);
     if (amount) {
       return apiFail(
         "This event type requires payment. Send the person to the booking page to pay.",
@@ -97,7 +97,9 @@ export async function POST(req: Request) {
         { bookingUrl: `${appUrl()}/${meetingType.slug}` }
       );
     }
-    const booking = await createFreeBooking(host, meetingType, input);
+    const booking = meetingType.requiresApproval
+      ? await createApprovalBooking(host, meetingType, input)
+      : await createFreeBooking(host, meetingType, input);
     return apiOk({ booking: publicBooking(booking) }, { status: 201 });
   } catch (err) {
     const mapped = await apiBookingErrorResponse(err);

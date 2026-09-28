@@ -5,7 +5,7 @@ const bookingSchema = {
   type: "object",
   properties: {
     id: { type: "string" },
-    status: { type: "string", enum: ["PENDING_PAYMENT", "CONFIRMED", "EXPIRED", "CANCELLED", "FAILED_NEEDS_INTERVENTION"] },
+    status: { type: "string", enum: ["PENDING_PAYMENT", "PENDING_APPROVAL", "CONFIRMED", "EXPIRED", "CANCELLED", "FAILED_NEEDS_INTERVENTION"] },
     startTime: { type: "string", format: "date-time" },
     endTime: { type: "string", format: "date-time" },
     timezone: { type: "string" },
@@ -17,6 +17,8 @@ const bookingSchema = {
     guests: { type: "array", items: { type: "string" } },
     amountCents: { type: ["integer", "null"] },
     paymentStatus: { type: ["string", "null"] },
+    paymentMethod: { type: ["string", "null"] },
+    promoCodeApplied: { type: ["string", "null"] },
     calendarPending: { type: "boolean" },
   },
 };
@@ -97,7 +99,7 @@ export function openApiDocument() {
         },
         post: {
           summary: "Create a booking",
-          description: "Free event types only. Paid types return 402 with the booking page URL — the invitee must pay there.",
+          description: "Free event types only. Types requiring host approval return PENDING_APPROVAL. Types with a price return 402 with the booking page URL for payment arrangements.",
           operationId: "createBooking",
           requestBody: {
             required: true,
@@ -117,6 +119,7 @@ export function openApiDocument() {
                     answers: {},
                     location: { type: "object" },
                     utm: { type: "object" },
+                    promoCode: { type: "string", description: "Optional event-type promotion code" },
                   },
                 },
               },

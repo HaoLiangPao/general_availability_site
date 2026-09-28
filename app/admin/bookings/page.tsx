@@ -47,7 +47,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: { t
     });
   } else {
     rows = await prisma.booking.findMany({
-      where: { startTime: { gte: now }, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } },
+      where: { startTime: { gte: now }, status: { in: ["CONFIRMED", "PENDING_PAYMENT", "PENDING_APPROVAL"] } },
       orderBy: { startTime: "asc" },
       take: 300,
       include: { meetingType: { select: { name: true, color: true, slug: true } } },

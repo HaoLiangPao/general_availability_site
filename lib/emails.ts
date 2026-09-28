@@ -184,6 +184,31 @@ function icsAttachment(ctx: BookingCtx, filename = "invite.ics") {
   return { filename, content: buildIcs(calendarItem(ctx)), contentType: "text/calendar" };
 }
 
+export async function sendApprovalRequest(ctx: BookingCtx, to: "host" | "invitee"): Promise<boolean> {
+  const { booking, meetingType, host } = ctx;
+  const forHost = to === "host";
+  const when = formatWhen(booking.startTime, forHost ? host.timezone : booking.timezone);
+  const title = forHost ? `Approval requested: ${meetingType.name}` : `Request received: ${meetingType.name}`;
+  const message = forHost
+    ? `${booking.name} <${booking.email}> requested this time. Review it before a calendar invitation is sent.`
+    : `Your request is awaiting ${hostName(host)}'s approval. The time is held, but your meeting is not confirmed yet. We will email you when it is approved or declined.`;
+  return sendMail({
+    idempotencyKey: ctx.mailKey,
+    to: forHost ? host.email : booking.email,
+    subject: title,
+    html: emailShell(`
+      <h1 style="margin:0 0 14px;font-size:20px">${escapeHtml(title)}</h1>
+      <p>${escapeHtml(message)}</p>
+      ${detailsTable(ctx, forHost ? host.timezone : booking.timezone, forHost)}
+      ${forHost ? answersHtml(booking) : ""}
+      ${forHost ? `<p>${button(`${appUrl()}/admin/bookings/${booking.id}`, "Review request")}</p>` : ""}
+    `, forHost ? "" : footer(ctx)),
+    text: [title, when, message, forHost ? answersText(booking) : "", forHost ? `${appUrl()}/admin/bookings/${booking.id}` : ""].join("\n"),
+    replyTo: forHost ? booking.email : replyTo(ctx),
+    fromName: forHost ? "OpenCalendar" : brandName(ctx),
+  });
+}
+
 export async function sendHostNotification(ctx: BookingCtx): Promise<boolean> {
   const { booking, meetingType, host } = ctx;
   const when = formatWhen(booking.startTime, host.timezone);
@@ -214,14 +239,15 @@ export async function sendCancellation(ctx: BookingCtx, to: "invitee" | "host"):
   const reason = booking.cancelReason?.trim();
   const refunded = booking.stripePaymentStatus === "refunded";
   const rebook = `${appUrl()}/${meetingType.slug}`;
-  const title = to === "host" ? `Cancelled: ${booking.name}, ${meetingType.name}` : `Cancelled: ${meetingType.name}`;
+  const declined = meetingType.requiresApproval && booking.cancelledBy === "host" && !booking.googleEventId;
+  const title = declined ? `Request declined: ${meetingType.name}` : to === "host" ? `Cancelled: ${booking.name}, ${meetingType.name}` : `Cancelled: ${meetingType.name}`;
   return sendMail({
     idempotencyKey: ctx.mailKey,
     to: to === "host" ? host.email : booking.email,
     subject: `${title} (${DateTime.fromJSDate(booking.startTime, { zone: tz }).toFormat("ccc LLL d, h:mm a")})`,
     html: emailShell(
       `
-      <h1 style="margin:0 0 14px;font-size:20px">${to === "host" ? "A booking was cancelled" : "Your booking was cancelled"}</h1>
+      <h1 style="margin:0 0 14px;font-size:20px">${declined ? "Your request was declined" : to === "host" ? "A booking was cancelled" : "Your booking was cancelled"}</h1>
       <p style="margin:0 0 4px;color:#71717a">${escapeHtml(meetingType.name)}</p>
       <p style="margin:0 0 14px;font-size:16px"><s>${escapeHtml(when)}</s></p>
       <p style="margin:0 0 14px">Cancelled by ${escapeHtml(by)}.${reason ? ` Reason: “${escapeHtml(reason)}”` : ""}</p>
@@ -233,7 +259,7 @@ export async function sendCancellation(ctx: BookingCtx, to: "invitee" | "host"):
     text: [title, when, `Cancelled by ${by}.`, reason ? `Reason: ${reason}` : "", to === "invitee" ? `Book a new time: ${rebook}` : ""].join("\n"),
     replyTo: to === "host" ? booking.email : replyTo(ctx),
     fromName: to === "host" ? "OpenCalendar" : brandName(ctx),
-    ...(to === "invitee" && !booking.googleEventId ? { attachments: [icsAttachment(ctx, "cancel.ics")] } : {}),
+    ...(to === "invitee" && !booking.googleEventId && !declined ? { attachments: [icsAttachment(ctx, "cancel.ics")] } : {}),
   });
 }
 

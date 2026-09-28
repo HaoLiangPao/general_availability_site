@@ -3,7 +3,7 @@ import SuccessView from "./SuccessView";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Booking confirmed", robots: { index: false } };
+export const metadata = { title: "Booking status", robots: { index: false } };
 
 export default function SuccessPage() {
   return (

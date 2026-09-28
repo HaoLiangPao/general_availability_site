@@ -13,6 +13,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   CONFIRMED: "ok",
   FAILED_NEEDS_INTERVENTION: "danger",
   PENDING_PAYMENT: "warn",
+  PENDING_APPROVAL: "warn",
   CANCELLED: "muted",
   EXPIRED: "muted",
 };
@@ -21,6 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
   CONFIRMED: "Confirmed",
   FAILED_NEEDS_INTERVENTION: "Needs attention",
   PENDING_PAYMENT: "Holding",
+  PENDING_APPROVAL: "Awaiting approval",
   CANCELLED: "Cancelled",
   EXPIRED: "Expired",
 };

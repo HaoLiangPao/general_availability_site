@@ -13,6 +13,7 @@ import {
   sendConflictApology,
   sendFollowUp,
   sendHostNotification,
+  sendApprovalRequest,
   sendInviteeConfirmation,
   sendReminder,
   sendRescheduled,
@@ -85,6 +86,14 @@ registerJobHandler("email", skippable(async (job) => {
   const ctx = { ...(await ctxOrStop(job)), mailKey: `job:${job.id}` };
   const p = job.payload as { template?: string; refunded?: boolean };
   switch (p.template) {
+    case "approval_invitee":
+      if (ctx.booking.status !== "PENDING_APPROVAL") return;
+      await mustSend(() => sendApprovalRequest(ctx, "invitee"), "approval invitee");
+      break;
+    case "approval_host":
+      if (ctx.booking.status !== "PENDING_APPROVAL") return;
+      await mustSend(() => sendApprovalRequest(ctx, "host"), "approval host");
+      break;
     case "confirmation":
       if (ctx.booking.status !== "CONFIRMED") return;
       await mustSend(() => sendInviteeConfirmation(ctx), "confirmation");

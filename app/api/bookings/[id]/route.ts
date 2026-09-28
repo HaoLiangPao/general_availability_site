@@ -38,6 +38,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     meetingType: {
       name: booking.meetingType.name,
       slug: booking.meetingType.slug,
+      currency: booking.meetingType.currency,
       accentColor: booking.meetingType.brand?.accentColor || booking.meetingType.color,
       // Only once confirmed, with booking details appended iff the host opted in.
       redirectUrl:

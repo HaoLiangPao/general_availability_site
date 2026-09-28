@@ -100,6 +100,7 @@ export function bookingInput(overrides: Partial<Record<string, unknown>> = {}) {
     durationMinutes?: number;
     guests?: string[];
     singleUseToken?: string | null;
+    promoCode?: string | null;
     utm?: Record<string, string> | null;
   };
 }

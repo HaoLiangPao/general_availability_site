@@ -1,5 +1,5 @@
 /**
- * "Needs attention" = a booking a host must look at: a failed slot conflict, a
+ * "Needs attention" = a booking a host must look at: an approval request, a failed slot conflict, a
  * confirmed booking whose calendar write never landed, or a booking with a dead
  * or overdue outbox job. Used by the bookings tab and the overview count.
  */
@@ -9,6 +9,7 @@ export function needsAttentionWhere() {
   return {
     OR: [
       { status: "FAILED_NEEDS_INTERVENTION" as const },
+      { status: "PENDING_APPROVAL" as const },
       { status: "CONFIRMED" as const, googleEventId: null },
     ],
   };

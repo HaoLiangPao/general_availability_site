@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { adminSession } from "@/lib/auth";
 import {
+  approveBooking,
   cancelBooking,
   markNoShow,
   refundBooking,
@@ -26,6 +27,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const action = body?.action;
 
   try {
+    if (action === "approve") {
+      const booking = await approveBooking(params.id);
+      return ok({ status: booking.status, meetLink: booking.meetLink });
+    }
+
     if (action === "retry") {
       const booking = await retryFailedBooking(params.id);
       return ok({ status: booking.status, meetLink: booking.meetLink });
