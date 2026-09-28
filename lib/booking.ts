@@ -964,6 +964,24 @@ export async function cancelBooking(
   const ctx = await loadCtx(bookingId);
   const { booking, meetingType, host } = ctx;
 
+  if (booking.status === "PENDING_APPROVAL") {
+    if (by === "invitee") throw new ChangeNotAllowedError("Contact the host to withdraw this request.");
+    const claimed = await prisma.booking.updateMany({
+      where: { id: booking.id, status: "PENDING_APPROVAL" },
+      data: {
+        status: "CANCELLED", cancelledAt: new Date(), cancelledBy: by,
+        cancelReason: opts.reason?.trim().slice(0, 1000) || null, expiresAt: null,
+      },
+    });
+    if (!claimed.count) throw new ChangeNotAllowedError("This request was already decided.");
+    const declined = await prisma.booking.findUniqueOrThrow({ where: { id: booking.id } });
+    await audit(booking.id, "approval_declined", { by, reason: declined.cancelReason });
+    if (opts.notify !== false) await enqueue("email", { template: "cancelled_invitee" }, { bookingId: booking.id, dedupeKey: `email:cancelled_invitee:${booking.id}` });
+    await queueWebhooks("booking.cancelled", declined, meetingType);
+    await drainFor(booking.id);
+    return { booking: declined, refunded: false, calendarRemoved: true };
+  }
+
   if (booking.status === "CANCELLED") return { booking, refunded: booking.stripePaymentStatus === "refunded", calendarRemoved: true };
 
   let refund = false;
