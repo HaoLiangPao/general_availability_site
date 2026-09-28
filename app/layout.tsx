@@ -3,9 +3,9 @@ import DemoBanner from "@/components/DemoBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "OpenCalendar — your own booking page",
+  title: "Book Time With Me",
   description:
-    "Self-hosted scheduling with Google Calendar, Google Meet links and paid bookings via Stripe.",
+    "Choose a time for an interview, coffee chat, in-person event or ski lesson.",
   robots: { index: true, follow: true },
 };
 
