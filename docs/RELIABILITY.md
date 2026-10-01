@@ -78,10 +78,12 @@ host:
 this silently gets clamped/rejected on Hobby. Use one of the options below
 instead if you're not on Pro.
 
-**GitHub Actions** (`.github/workflows/cron-tick.yml`, included, disabled by
-default): set the repo variable `BOOKKIT_URL` to your instance's URL and the
-repo secret `CRON_SECRET` to match your deployment's `CRON_SECRET` env var,
-and it runs every 10 minutes via `workflow_dispatch`/`schedule`.
+**GitHub Actions** (`.github/workflows/cron-tick.yml`, included as a manual
+`workflow_dispatch` runner during development): set the repo variable
+`BOOKKIT_URL` to your instance's URL and the repo secret `CRON_SECRET` to
+match your deployment's `CRON_SECRET` env var. Before accepting real bookings,
+add a reliable schedule. GitHub Actions scheduled workflows run only from the
+repository default branch, which may differ from the Vercel production branch.
 
 **Your own crontab / launchd**, if you're self-hosting on a box you control:
 

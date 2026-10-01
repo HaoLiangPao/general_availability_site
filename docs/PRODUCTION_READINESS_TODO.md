@@ -64,7 +64,7 @@ Neon Project ID：`mute-firefly-92263942`。两份本地环境文件均为 Git �
 
 - [x] 在新版 Neon Production 运行 `npm run db:deploy` 和 `npm run seed:legacy`；Preview 分支从其复制，并再次验证迁移 / 种子脚本可重复执行。滑雪课两个支付选项仍因收款配置缺失而停用。详见 [旧站功能迁移对照](LEGACY_FEATURE_MIGRATION.md)。
 - [x] 新项目 Preview 构建为 Ready；实测首页从 Neon 读取三种公开服务，后台密码登录成功，健康检查显示数据库可达。
-- [ ] Vercel Hobby 不支持每 10 分钟的 Cron。待工作流进入默认分支后，配置上述 `BOOKKIT_URL` / `CRON_SECRET`，验证 GitHub Actions 定时调用 `/api/cron/tick`。
+- [ ] 开发阶段按需手动部署，`.github/workflows/cron-tick.yml` 仅保留手动触发。接受真实预约前，配置可靠的 `/api/cron/tick` 定时调用并验证提醒与失败重试；GitHub Actions 的定时工作流只能从仓库默认分支运行，Vercel Hobby 原生 Cron 也不支持每 10 分钟。
 - [ ] 检查 `/api/health` 返回 200，数据库、Google Calendar、Cron、任务队列等关键检查均为正常。
 - [ ] 用测试身份完整走通：查看可用时间 → 免费预约 → Google 日历事件和邀请 → 改期 → 取消；检查时区和移动端。
 - [ ] 若启用收费，走通 Stripe 测试付款、Webhook、退款和失败重试；之后再开启真实付款。
