@@ -8,7 +8,7 @@
 import type { Host } from "@prisma/client";
 import { DateTime } from "luxon";
 import { prisma } from "../db";
-import { createFreeBooking, priceFor, requireHost, resolveDuration } from "../booking";
+import { createApprovalBooking, createFreeBooking, priceFor, requireHost, resolveDuration } from "../booking";
 import { parseBookingRequest } from "../booking-request";
 import { meetingTypeInclude, type MeetingTypeFull } from "../availability";
 import { manageUrl } from "../emails";
@@ -23,8 +23,8 @@ export const PUBLIC_MCP_PATH = "/api/mcp/public";
 
 export const PUBLIC_INSTRUCTIONS =
   "Books meetings with this host. Call list_event_types, then find_available_times, then book_meeting " +
-  "with the invitee's real name and email. Free meetings are booked directly and the invitee gets the " +
-  "confirmation email and calendar invite. Paid meetings return a checkout URL: give it to the person to pay.";
+  "with the invitee's real name and email. Free meetings book directly unless host approval is required; " +
+  "approval requests are held but not confirmed. Priced meetings return a booking-page URL for payment.";
 
 const isAgentBookable = (mt: { active: boolean; secret: boolean; agentBookable: boolean }) =>
   mt.active && !mt.secret && mt.agentBookable;
@@ -53,6 +53,8 @@ export function agentView(mt: MeetingTypeFull, host: Host) {
     durations: durationChoices(mt).map((d) => ({ minutes: d.minutes, priceCents: d.priceCents ?? null })),
     currency: mt.currency,
     requiresPayment: durationChoices(mt).some((d) => (d.priceCents ?? 0) > 0),
+    requiresApproval: mt.requiresApproval,
+    paymentMethod: mt.paymentMethod,
     timezone: mt.schedule?.timezone || host.timezone,
     questions: questionsOf(mt),
     bookingUrl: `${appUrl()}/${mt.slug}`,
@@ -90,7 +92,7 @@ export const PUBLIC_TOOLS: Tool[] = [
       const lines = views.map(
         (v) =>
           `- ${v.name} (slug: ${v.slug}) — ${v.durations.map((d) => `${d.minutes} min ${priceText(d.priceCents, v.currency)}`).join(" / ")}` +
-          (v.requiresPayment ? " — paid: book_meeting returns a checkout link" : "")
+          (v.requiresPayment ? ` — payment by ${v.paymentMethod}: book_meeting returns a booking link` : v.requiresApproval ? " — request needs host approval" : "")
       );
       return {
         content: [{ type: "text", text: lines.length ? lines.join("\n") : "No meetings are open to agent booking." }],
@@ -122,9 +124,8 @@ export const PUBLIC_TOOLS: Tool[] = [
   {
     name: "book_meeting",
     description:
-      "Book an open slot (from find_available_times) for a named person. Free meetings are booked immediately and " +
-      "the person receives the confirmation email and calendar invite. Paid meetings are NOT booked: you get a " +
-      "checkoutUrl with the slot preselected — give it to the person to pay. Use the person's real name and email.",
+      "Book an open slot for a named person. Approval-required meetings return a pending request, not a confirmed booking. " +
+      "Priced meetings return a booking-page URL for the person to arrange payment. Use the person's real name and email.",
     inputSchema: {
       type: "object",
       required: ["slug", "name", "email", "timezone", "startTime"],
@@ -173,7 +174,7 @@ export const PUBLIC_TOOLS: Tool[] = [
             content: [
               {
                 type: "text",
-                text: `"${meetingType.name}" costs ${priceText(amount, meetingType.currency)} and needs a human to pay. Nothing is booked yet. Send ${input.name} this link; the time is preselected: ${url}`,
+                text: `"${meetingType.name}" costs ${priceText(amount, meetingType.currency)} and requires ${meetingType.paymentMethod === "etransfer" ? "e-transfer" : "card payment"}. Nothing is booked yet. Send ${input.name} this booking link with the time preselected: ${url}`,
               },
             ],
             structuredContent: { requiresPayment: true, checkoutUrl: url, amountCents: amount, currency: meetingType.currency },
@@ -187,14 +188,18 @@ export const PUBLIC_TOOLS: Tool[] = [
         }
         input.agent = { client: cleanString(args.agentName, 80) };
 
-        const booking = await createFreeBooking(host, meetingType, input);
+        const booking = meetingType.requiresApproval
+          ? await createApprovalBooking(host, meetingType, input)
+          : await createFreeBooking(host, meetingType, input);
         const when = DateTime.fromJSDate(booking.startTime).setZone(input.timezone).toFormat("EEE, MMM d 'at' h:mm a ZZZZ");
         const manage = manageUrl(booking);
         return {
           content: [
             {
               type: "text",
-              text: `Booked "${meetingType.name}" for ${booking.name} on ${when}. A confirmation email is on its way to ${booking.email}. Reschedule or cancel: ${manage}`,
+              text: booking.status === "PENDING_APPROVAL"
+                ? `Requested "${meetingType.name}" for ${booking.name} on ${when}. This time is held pending host approval; no calendar invitation has been sent.`
+                : `Booked "${meetingType.name}" for ${booking.name} on ${when}. A confirmation email is on its way to ${booking.email}. Reschedule or cancel: ${manage}`,
             },
           ],
           structuredContent: {
@@ -205,7 +210,7 @@ export const PUBLIC_TOOLS: Tool[] = [
               endTime: booking.endTime.toISOString(),
               timezone: booking.timezone,
               meetLink: booking.meetLink,
-              manageUrl: manage,
+              manageUrl: booking.status === "CONFIRMED" ? manage : null,
             },
           },
         };

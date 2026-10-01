@@ -1,4 +1,4 @@
-import { createFreeBooking, priceFor, resolveDuration, resolveSingleUseLink, startPaidCheckout, startPaidIntent } from "@/lib/booking";
+import { createApprovalBooking, createFreeBooking, priceFor, resolveDuration, resolveSingleUseLink, startPaidCheckout, startPaidIntent } from "@/lib/booking";
 import { parseBookingRequest, publicBooking as basePublicBooking, publicRedirectFields } from "@/lib/booking-request";
 import { buildRedirectUrl } from "@/lib/ui/redirect";
 import { env } from "@/lib/env";
@@ -45,10 +45,12 @@ export async function POST(req: Request) {
 
   try {
     const link = await resolveSingleUseLink(meetingType, input.singleUseToken);
-    const amount = priceFor(meetingType, resolveDuration(meetingType, input.durationMinutes, link), link);
+    const amount = priceFor(meetingType, resolveDuration(meetingType, input.durationMinutes, link), link, input.promoCode);
 
-    if (!amount) {
-      const booking = await createFreeBooking(host, meetingType, input);
+    if (!amount || meetingType.paymentMethod === "etransfer") {
+      const booking = meetingType.requiresApproval
+        ? await createApprovalBooking(host, meetingType, input)
+        : await createFreeBooking(host, meetingType, input);
       const redirectUrl =
         booking.status === "CONFIRMED" && meetingType.redirectUrl
           ? buildRedirectUrl(meetingType.redirectUrl, meetingType.redirectPassParams, publicRedirectFields(booking))
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
       return ok({ booking: publicBooking(booking), redirectUrl });
     }
 
+    if (meetingType.requiresApproval) return fail("Paid meeting types cannot require approval.", 409, "APPROVAL_PAYMENT_CONFLICT");
     if (!stripeConfigured()) return fail("Payments are not configured on this instance.", 503, "STRIPE_NOT_CONFIGURED");
     if (stripeKeyMismatch()) {
       log.error("bookings", "stripe_key_mismatch", { detail: stripeKeyMismatch() });

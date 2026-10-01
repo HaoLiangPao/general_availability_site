@@ -10,6 +10,7 @@ export type FormState = {
   guests: string;
   location: LocationOption;
   invPhone: string;
+  promoCode: string;
 };
 
 export type DetailsPayload = {
@@ -20,6 +21,7 @@ export type DetailsPayload = {
   location: LocationOption | null;
   company: string;
   elapsedMs: number;
+  promoCode: string;
 };
 
 type Props = {
@@ -57,6 +59,7 @@ export default function DetailsForm({ meetingType: mt, state, onChange, submitLa
       location,
       company: company.current,
       elapsedMs: Date.now() - mountedAt.current,
+      promoCode: state.promoCode,
     });
   }
 
@@ -232,6 +235,13 @@ export default function DetailsForm({ meetingType: mt, state, onChange, submitLa
             value={state.guests}
             onChange={(e) => onChange({ guests: e.target.value })}
           />
+        </div>
+      )}
+
+      {mt.promoCode && (
+        <div>
+          <label className="bk-label" htmlFor="bk-promo">Promo code <span className="opacity-60">(optional)</span></label>
+          <input id="bk-promo" className="bk-input" value={state.promoCode} onChange={(e) => onChange({ promoCode: e.target.value })} maxLength={40} autoComplete="off" />
         </div>
       )}
 

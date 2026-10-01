@@ -29,3 +29,4 @@ playwright-report
 # Internal planning notes (local only)
 .planning/
 session-log.md
+.neon

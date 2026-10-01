@@ -73,7 +73,17 @@ export default function BookingActions({ booking, hostTimezone }: Props) {
       {error && <p className="text-sm" style={{ color: "var(--bk-danger)" }}>{error}</p>}
 
       <div className="flex flex-wrap gap-2">
-        {!booking.hasGoogleEvent && booking.status !== "CANCELLED" && (
+        {booking.status === "PENDING_APPROVAL" && (
+          <>
+            <button type="button" className="bk-btn bk-btn-primary !text-sm" disabled={Boolean(busy)} onClick={() => run("approve")}>
+              {busy === "approve" ? "Approving…" : "Approve and send invite"}
+            </button>
+            <button type="button" className="bk-btn bk-btn-ghost !text-sm" disabled={Boolean(busy)} onClick={() => setPanel("cancel")}>
+              Decline request
+            </button>
+          </>
+        )}
+        {!booking.hasGoogleEvent && booking.status === "CONFIRMED" && (
           <button type="button" className="bk-btn bk-btn-ghost !text-sm" disabled={busy === "retry"} onClick={() => run("retry")}>
             {busy === "retry" ? "Retrying…" : "Retry calendar event"}
           </button>
@@ -153,7 +163,7 @@ export default function BookingActions({ booking, hostTimezone }: Props) {
             disabled={busy === "cancel"}
             onClick={() => run("cancel", { reason: cancelReason, notify, refund })}
           >
-            {busy === "cancel" ? "Cancelling…" : "Confirm cancel"}
+            {busy === "cancel" ? "Cancelling…" : booking.status === "PENDING_APPROVAL" ? "Decline request" : "Confirm cancel"}
           </button>
         </div>
       )}

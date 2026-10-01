@@ -243,6 +243,10 @@ export type PublicMeetingType = {
   durationMinutes: number;
   durations: DurationOption[];
   priceCents: number | null;
+  paymentMethod: string;
+  requiresApproval: boolean;
+  promoCode: string | null;
+  promoDiscountCents: number | null;
   currency: string;
   color: string;
   questions: BookingQuestion[];

@@ -8,6 +8,7 @@ import { DateTime } from "luxon";
 import { prisma } from "../db";
 import {
   cancelBooking,
+  createApprovalBooking,
   createFreeBooking,
   hostBookingBlocked,
   priceFor,
@@ -156,9 +157,8 @@ export const TOOLS: Tool[] = [
   {
     name: "book_meeting",
     description:
-      "Book a meeting on a free event type at an exact open slot (get one from find_available_times first). " +
-      "If the event type requires payment, this returns the booking page URL instead of booking — send the " +
-      "person there to pay; it cannot be booked through this tool.",
+      "Book a free meeting at an exact open slot, or submit it for host approval when required. " +
+      "Priced event types return the booking page URL so the person can arrange payment.",
     inputSchema: {
       type: "object",
       required: ["slug", "name", "email", "timezone", "startTime"],
@@ -188,14 +188,16 @@ export const TOOLS: Tool[] = [
         if (amount) {
           const url = `${appUrl()}/${meetingType.slug}`;
           return {
-            content: [{ type: "text", text: `"${meetingType.name}" requires payment ($${(amount / 100).toFixed(2)}). Send the person here to book and pay: ${url}` }],
+            content: [{ type: "text", text: `"${meetingType.name}" costs $${(amount / 100).toFixed(2)} ${meetingType.currency.toUpperCase()} (${meetingType.paymentMethod}). Send the person this booking link: ${url}` }],
             structuredContent: { requiresPayment: true, bookingUrl: url },
           };
         }
-        const booking = await createFreeBooking(host, meetingType, parsed.input);
+        const booking = meetingType.requiresApproval
+          ? await createApprovalBooking(host, meetingType, parsed.input)
+          : await createFreeBooking(host, meetingType, parsed.input);
         const when = DateTime.fromJSDate(booking.startTime).setZone(parsed.input.timezone).toFormat("EEE, MMM d 'at' h:mm a ZZZZ");
         return {
-          content: [{ type: "text", text: `Booked "${meetingType.name}" for ${booking.name} on ${when}. Booking id: ${booking.id}.` }],
+          content: [{ type: "text", text: `${booking.status === "PENDING_APPROVAL" ? "Requested, awaiting host approval" : "Booked"} "${meetingType.name}" for ${booking.name} on ${when}. Booking id: ${booking.id}.` }],
           structuredContent: { booking: publicBooking(booking) },
         };
       } catch (err) {

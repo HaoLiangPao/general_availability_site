@@ -1,16 +1,11 @@
 name: OpenCalendar cron tick
 
-# Runs /api/cron/tick every 10 minutes. This is the option for hosts on a plan
-# that only allows daily Vercel Crons (e.g. Hobby) — see docs/RELIABILITY.md.
-#
-# Disabled by default: every job is skipped until you set the repo variable
-# BOOKKIT_URL (Settings -> Secrets and variables -> Actions -> Variables) to
-# your instance's base URL, and the secret CRON_SECRET to match the
-# CRON_SECRET env var on your deployment.
+# Development-stage manual runner for /api/cron/tick. Before accepting real
+# bookings, configure a production scheduler as described in docs/RELIABILITY.md.
+# Set BOOKKIT_URL (Actions repository variable) to the target instance and
+# CRON_SECRET (Actions repository secret) to its matching deployment secret.
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 jobs:

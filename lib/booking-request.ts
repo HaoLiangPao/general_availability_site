@@ -48,6 +48,11 @@ export function parseBookingRequest(body: Record<string, unknown>, mt: MeetingTy
     }
   }
 
+  const promoCode = cleanString(body.promoCode, 40)?.toUpperCase() ?? null;
+  if (promoCode && (!mt.promoCode || promoCode !== mt.promoCode)) {
+    return { ok: false, error: "That promo code is not valid.", code: "BAD_PROMO" };
+  }
+
   const duration = body.durationMinutes === undefined || body.durationMinutes === null ? undefined : Number(body.durationMinutes);
   if (duration !== undefined && !Number.isInteger(duration)) {
     return { ok: false, error: "Invalid duration.", code: "BAD_DURATION" };
@@ -67,6 +72,7 @@ export function parseBookingRequest(body: Record<string, unknown>, mt: MeetingTy
       location,
       utm: parseUtm(body.utm),
       singleUseToken: cleanString(body.link, 100),
+      promoCode,
     },
   };
 }
@@ -86,6 +92,8 @@ export function publicBooking(b: {
   guests: string[];
   amountCents: number | null;
   stripePaymentStatus: string | null;
+  paymentMethod?: string | null;
+  promoCodeApplied?: string | null;
   googleEventId: string | null;
 }) {
   return {
@@ -102,6 +110,8 @@ export function publicBooking(b: {
     guests: b.guests,
     amountCents: b.amountCents,
     paymentStatus: b.stripePaymentStatus,
+    paymentMethod: b.paymentMethod ?? null,
+    promoCodeApplied: b.promoCodeApplied ?? null,
     calendarPending: b.status === "CONFIRMED" && !b.googleEventId,
   };
 }

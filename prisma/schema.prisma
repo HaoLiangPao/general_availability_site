@@ -122,6 +122,10 @@ model MeetingType {
   // Extra durations the invitee can pick: [{ "minutes": 60, "priceCents": 9900 }]. Empty = fixed.
   durationOptions Json?
   priceCents      Int? // null => free
+  requiresApproval Boolean @default(false)
+  paymentMethod String @default("stripe") // stripe | etransfer
+  promoCode String?
+  promoDiscountCents Int?
   currency        String @default("usd")
   color           String @default("#FF6A00")
 
@@ -179,6 +183,7 @@ model MeetingType {
 
 enum BookingStatus {
   PENDING_PAYMENT
+  PENDING_APPROVAL
   CONFIRMED
   EXPIRED
   CANCELLED
@@ -218,6 +223,8 @@ model Booking {
   stripePaymentStatus   String? // "unpaid" | "paid" | "refunded"
   stripePaidAt          DateTime?
   amountCents           Int?
+  paymentMethod         String? // stripe | etransfer
+  promoCodeApplied      String?
   webhookProcessedAt    DateTime?
 
   // Google Calendar

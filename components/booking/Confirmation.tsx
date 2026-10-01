@@ -6,6 +6,10 @@ import { locationLabel, type LocationOption } from "@/lib/types";
 
 export type ConfirmedBooking = {
   id: string;
+  status?: string;
+  amountCents?: number | null;
+  paymentMethod?: string | null;
+  promoCodeApplied?: string | null;
   startTime: string;
   endTime: string;
   timezone: string;
@@ -20,11 +24,12 @@ export type ConfirmedBooking = {
 type Props = {
   booking: ConfirmedBooking;
   meetingTypeName: string;
+  currency?: string;
   /** Suppressed inside an embed's confirmed step — the manage page is a full navigation. */
   showManageLinks?: boolean;
 };
 
-export default function Confirmation({ booking, meetingTypeName, showManageLinks = true }: Props) {
+export default function Confirmation({ booking, meetingTypeName, currency = "USD", showManageLinks = true }: Props) {
   const start = DateTime.fromISO(booking.startTime, { zone: booking.timezone });
   const end = DateTime.fromISO(booking.endTime, { zone: booking.timezone });
   const item = {
@@ -51,6 +56,14 @@ export default function Confirmation({ booking, meetingTypeName, showManageLinks
       <p className="text-[var(--bk-muted)] text-sm mb-6">
         {meetingTypeName} — a calendar invite is on its way to {booking.email}.
       </p>
+
+      {booking.paymentMethod === "etransfer" && booking.amountCents ? (
+        <p className="text-sm mb-4 rounded-lg border border-[var(--bk-border)] p-3">
+          E-transfer payment due: {new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(booking.amountCents / 100)}.
+          {booking.promoCodeApplied ? ` Promo ${booking.promoCodeApplied} applied.` : ""}
+          Payment is not collected on this site; follow the host&apos;s instructions in your confirmation email.
+        </p>
+      ) : null}
 
       <div className="rounded-xl border border-[var(--bk-border)] p-4 mb-5">
         <p className="font-semibold">{start.toFormat("cccc, LLLL d, yyyy")}</p>

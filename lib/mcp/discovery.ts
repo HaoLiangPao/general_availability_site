@@ -18,8 +18,8 @@ export async function llmsTxt(): Promise<string> {
     "",
     `- MCP server (Streamable HTTP, no auth): ${mcp}`,
     "- Tools: `list_event_types` → `find_available_times` → `book_meeting` (the invitee's real name and email).",
-    "- Free meetings are booked directly; the invitee gets the confirmation email and calendar invite.",
-    "- Paid meetings are not booked by the agent: `book_meeting` returns a checkout URL with the time preselected. Give it to the person to pay.",
+    "- Free meetings book directly unless host approval is required. Approval requests hold the time until the host decides.",
+    "- Priced meetings are not booked by the agent: `book_meeting` returns a booking-page URL with the time preselected. Give it to the person to arrange payment.",
     `- Descriptor: ${base}/.well-known/mcp.json`,
     "",
     "## Meetings",
@@ -29,7 +29,7 @@ export async function llmsTxt(): Promise<string> {
   for (const mt of types) {
     const v = agentView(mt, host);
     const price = v.durations
-      .map((d) => `${d.minutes} min, ${d.priceCents ? `$${(d.priceCents / 100).toFixed(2)} ${v.currency.toUpperCase()} (checkout link)` : "free"}`)
+      .map((d) => `${d.minutes} min, ${d.priceCents ? `$${(d.priceCents / 100).toFixed(2)} ${v.currency.toUpperCase()} (booking link)` : "free"}`)
       .join(" / ");
     lines.push(`- [${v.name}](${v.bookingUrl}): slug \`${v.slug}\`, ${price}, host timezone ${v.timezone}.${v.description ? ` ${v.description.replace(/\s+/g, " ").trim()}` : ""}`);
   }
@@ -41,7 +41,7 @@ export async function mcpDescriptor() {
   const url = `${appUrl()}${PUBLIC_MCP_PATH}`;
   return {
     name: `Book ${hostLabel(host)}`,
-    description: "Check open times and book meetings. Free meetings book directly; paid ones return a checkout link for a human.",
+    description: "Check open times and book meetings. Free meetings book directly or await host approval; priced ones return a booking link for a human.",
     transport: "streamable-http",
     url,
     authentication: "none",

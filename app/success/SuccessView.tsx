@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import Confirmation, { type ConfirmedBooking } from "@/components/booking/Confirmation";
 
 type Booking = ConfirmedBooking & { status: string };
-type MeetingTypeLite = { name: string; slug: string; redirectUrl: string | null; accentColor?: string };
+type MeetingTypeLite = { name: string; slug: string; currency: string; redirectUrl: string | null; accentColor?: string };
 
 const MAX_ATTEMPTS = 40; // ~60s at 1.5s intervals
 
@@ -90,6 +90,17 @@ export default function SuccessView() {
 
   const accent = { ["--bk-accent" as string]: meetingType?.accentColor || "#FF6A00" } as React.CSSProperties;
 
+  if (booking.status === "PENDING_APPROVAL") {
+    return (
+      <div style={accent} className="bk-card p-7 max-w-md w-full text-center">
+        <h1 className="text-lg font-semibold mb-2">Request received</h1>
+        <p className="text-[var(--bk-muted)] text-sm">
+          Your time is held while the host reviews your request. This meeting is not confirmed yet; watch your email for a confirmation or a decline.
+        </p>
+      </div>
+    );
+  }
+
   if (booking.status === "PENDING_PAYMENT") {
     const stalled = attempts >= MAX_ATTEMPTS;
     return (
@@ -137,7 +148,7 @@ export default function SuccessView() {
 
   return (
     <div style={accent} className="bk-card p-7 max-w-md w-full">
-      <Confirmation booking={booking} meetingTypeName={meetingType?.name ?? ""} />
+      <Confirmation booking={booking} meetingTypeName={meetingType?.name ?? ""} currency={meetingType?.currency} />
     </div>
   );
 }
