@@ -47,8 +47,10 @@ export default async function BookingPage({
     await bumpMetric(meetingType.id, "view", searchParams.utm_source as string | undefined);
   }
 
+  const theme = publicType.brand?.theme === "light" ? "light" : "dark";
+
   return (
-    <main className="min-h-dvh px-4 py-8 sm:py-14">
+    <main data-theme={theme} className="min-h-dvh px-4 py-8 sm:py-14">
       <BookingWidget
         initialSlots={await seedPromise}
         meetingType={publicType}
