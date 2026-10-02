@@ -16,7 +16,7 @@ Neon Project ID：`mute-firefly-92263942`。两份本地环境文件均为 Git �
 - [x] 开发阶段 Production 域名：`https://opencalendar-two.vercel.app`；正式公开前仍需确定自有域名。
 - [x] 为新版使用独立 Vercel Project `open_calendar`；在完成端到端验收前，不将 draft PR 提升到生产。
 - [x] 使用独立 Neon Project，并将 Production 和 Preview 放在不同分支；未在旧站数据库运行新版 Prisma 迁移。
-- [ ] 明确数据迁移范围：旧预约、客户资料、日历事件是否需要迁入；确定备份与回退方案。
+- [x] 本次不导入旧预约、客户资料或旧日历事件；新站只记录启用后产生的数据。旧站保留供查阅。
 
 ## 2. 必填值与放置位置
 
@@ -38,9 +38,9 @@ Neon Project ID：`mute-firefly-92263942`。两份本地环境文件均为 Git �
 
 ## Google Cloud OAuth 客户端
 
-选择 **Web application**。截图里的两个空白 URI 行会触发校验；填写以下地址（或删除不需要的空行）。这个项目通过 Next.js 服务端执行 OAuth，回调必须与 `GOOGLE_REDIRECT_URI` **完全一致**。使用稳定的 Vercel 项目 / 分支域名，不用每次部署都变化的部署 ID 域名。
+选择 **Web application**。本项目在 Next.js 服务端完成 OAuth，**Authorized JavaScript origins 可以留空**；若填写，使用下表中不带路径的站点 origin。Authorized redirect URI 必须与 `GOOGLE_REDIRECT_URI` **完全一致**。使用稳定的 Vercel 项目 / 分支域名，不用每次部署都变化的部署 ID 域名。
 
-| 环境 | Authorized JavaScript origin | Authorized redirect URI |
+| 环境 | Authorized JavaScript origin（可选） | Authorized redirect URI（必填） |
 | --- | --- | --- |
 | Production | `https://opencalendar-two.vercel.app` | `https://opencalendar-two.vercel.app/api/google/callback` |
 | Preview | `https://opencalendar-git-codex-opencalenda-2f5f56-haoliangpaos-projects.vercel.app` | `https://opencalendar-git-codex-opencalenda-2f5f56-haoliangpaos-projects.vercel.app/api/google/callback` |
@@ -70,7 +70,7 @@ Neon Project ID：`mute-firefly-92263942`。两份本地环境文件均为 Git �
 - [ ] 若启用收费，走通 Stripe 测试付款、Webhook、退款和失败重试；之后再开启真实付款。
 - [ ] 验证面试申请 → 待审批 → 后台批准/拒绝 → 邀请与通知；检查无邮件配置时后台“Needs attention”仍可看到申请。
 - [ ] 核对旧站 `$` 实际币种，并验证滑雪课刷卡 100、电子转账应收 90、`WINTER10` 分别减 10；电子转账核销为人工流程。
-- [ ] 历史预约与客户数据需要单独备份、映射与导入；当前功能迁移脚本不会复制旧数据。完成这些验收后再考虑替换旧生产站。
+- [x] 用户决定不迁入历史预约、客户或日历事件；功能迁移脚本不会复制旧数据。新站开始接受预约前仍需完成上述端到端验收。
 - [ ] 记录切换日期、备份位置和回退步骤；切换后监控健康检查与失败任务。
 
 参考：`.env.example`、`README.md`、`docs/RELIABILITY.md`、PR #2、PR #3。
